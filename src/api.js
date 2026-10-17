@@ -109,10 +109,25 @@ export function watchAuth(fn) {
   return onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     try {
-      profile = user ? (await getDoc(doc(db, "users", user.uid))).data() : null;
-      isAdmin = user
-        ? Boolean((await user.getIdTokenResult()).claims.admin)
-        : false;
+      if (user) {
+        const userRef = doc(db, "users", user.uid);
+        let userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            name: user.displayName || user.email?.split("@")[0] || "Neighbor",
+            role: "student",
+            verified: false,
+            disabled: false,
+            createdAt: serverTimestamp(),
+          });
+          userSnap = await getDoc(userRef);
+        }
+        profile = userSnap.data();
+        isAdmin = Boolean((await user.getIdTokenResult()).claims.admin);
+      } else {
+        profile = null;
+        isAdmin = false;
+      }
       fn(user);
     } catch (e) {
       profile = null;
