@@ -70,13 +70,16 @@ export default async function handler(request) {
     if (!profile.ok) return json({ error: "Account profile could not be verified." }, 403);
     const fields = (await profile.json()).fields;
     const isDisabled = fields?.disabled?.booleanValue === true;
-    const isVerifiedLandlord = fields?.role?.stringValue === "landlord" && fields?.verified?.booleanValue === true;
+    const role = fields?.role?.stringValue;
+    const isLandlord = role === "landlord";
+    const isVerifiedLandlord = isLandlord && fields?.verified?.booleanValue === true;
     if (isDisabled)
       return json(
         { error: "Suspended accounts cannot upload media." },
         403,
       );
-    if (!isVerifiedLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
+    if (!isLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
+    if (isVideo && !isVerifiedLandlord) return json({ error: "Only verified landlords can upload walkthrough videos." }, 403);
 
     const timestamp = Math.floor(Date.now() / 1000);
     const public_id = `dormpath/${uid}/${randomUUID()}`;

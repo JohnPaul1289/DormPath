@@ -1831,15 +1831,46 @@ async function profilePage() {
             <label>Legal name<input name="legalName" required maxlength="120" value="${e(landlordApplication?.legalName || api.profile?.name || "")}"></label>
             <label>Property address<input name="propertyAddress" required maxlength="250" value="${e(landlordApplication?.propertyAddress || "")}"></label>
             <label>Proof of ownership / lease reference<input name="proofOfOwnershipRef" required maxlength="120" value="${e(landlordApplication?.proofOfOwnershipRef || "")}" placeholder="Title, tax declaration, or notarized lease reference"></label>
-            <label>Business permit number<input name="businessPermitNumber" required maxlength="100" value="${e(landlordApplication?.businessPermitNumber || "")}"></label>
-            <label>Business permit expiry<input name="businessPermitExpires" required type="date" value="${e(landlordApplication?.businessPermitExpires || "")}"></label>
+            <label>Mayor's / Business permit number<input name="businessPermitNumber" required maxlength="100" value="${e(landlordApplication?.businessPermitNumber || "")}"></label>
+            <label>Mayor's permit expiry date<input name="businessPermitExpires" required type="date" value="${e(landlordApplication?.businessPermitExpires || "")}"></label>
             <label>Barangay clearance number<input name="barangayClearanceNumber" required maxlength="100" value="${e(landlordApplication?.barangayClearanceNumber || "")}"></label>
             <label>Barangay clearance expiry<input name="barangayClearanceExpires" required type="date" value="${e(landlordApplication?.barangayClearanceExpires || "")}"></label>
             <label>Fire safety certificate number<input name="fireSafetyNumber" required maxlength="100" value="${e(landlordApplication?.fireSafetyNumber || "")}"></label>
             <label>Fire safety certificate expiry<input name="fireSafetyExpires" required type="date" value="${e(landlordApplication?.fireSafetyExpires || "")}"></label>
           </div>
-          <label class="check" style="margin-top:14px;"><input type="checkbox" name="consent" required ${landlordApplication?.consent ? "checked" : ""}> I certify these permit details are accurate and authorize DormPath administrators to review them.</label>
-          <p class="text-muted" style="font-size:0.75rem; margin:10px 0;">Do not upload identity scans as listing photos. Permit references are stored in the private review record.</p>
+
+          <!-- Mayor's Permit Document Upload Field -->
+          <div style="margin-top:16px; padding:16px; background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--radius-md);">
+            <div style="font-weight:700; font-size:0.9375rem; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+              ${icon("upload")} Upload Mayor's Permit Document (Required Photo / Scan)
+            </div>
+            <p style="font-size:0.8125rem; color:var(--text-secondary); margin:0 0 12px; line-height:1.5;">
+              Please upload a clear photo or scan of your official Tuguegarao City or Peñablanca Mayor's Permit (JPEG, PNG, or WebP under 10 MB). The administrator will inspect this document to verify it matches your name, address, and permit number.
+            </p>
+
+            <input type="file" name="mayorsPermitFile" id="mayors-permit-file-input" accept="image/jpeg,image/png,image/webp">
+            <input type="hidden" name="mayorsPermitUrl" value="${e(landlordApplication?.mayorsPermitUrl || "")}">
+
+            ${
+              landlordApplication?.mayorsPermitUrl
+                ? `
+              <div style="display:flex; align-items:center; gap:14px; margin-top:12px; padding:10px 14px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md);">
+                <img src="${e(landlordApplication.mayorsPermitUrl)}" alt="Current Mayor's Permit" style="width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--border-light);" />
+                <div style="flex:1;">
+                  <strong style="font-size:0.875rem; color:var(--success); display:block;">Mayor's Permit Attached</strong>
+                  <a href="${e(landlordApplication.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem; color:var(--primary); font-weight:600;">
+                    ${icon("external-link")} View Current Document
+                  </a>
+                </div>
+                <span style="font-size:0.75rem; color:var(--text-muted);">Choose a new file to replace</span>
+              </div>
+            `
+                : ""
+            }
+          </div>
+
+          <label class="check" style="margin-top:16px;"><input type="checkbox" name="consent" required ${landlordApplication?.consent ? "checked" : ""}> I certify these permit details are accurate and authorize DormPath administrators to inspect and verify them.</label>
+          <p class="text-muted" style="font-size:0.75rem; margin:10px 0;">Do not upload identity scans as public listing photos. Permit references and document scans are stored only in the secure administrator review record.</p>
           <button class="button primary" type="submit">${landlordApplication ? "Update and resubmit" : "Submit for admin review"}</button>
         </form>
       </div>`
@@ -2480,30 +2511,94 @@ async function adminPage(tab = "users") {
 
       ${
         tab === "landlordApplications"
-          ? `<div style="display:grid; gap:14px;">
+          ? `<div style="display:grid; gap:16px;">
               ${
                 data.length
                   ? data.map((application) => `
-                    <article class="detail-section" style="margin:0;">
-                      <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+                    <article class="detail-section" style="margin:0; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px;">
+                      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:14px;">
                         <div>
-                          <h3 style="margin:0 0 6px;">${e(application.legalName || "Unnamed applicant")}</h3>
-                          <div class="badge badge-outline">${e(String(application.status || "submitted").replaceAll("_", " "))}</div>
+                          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <h3 style="margin:0; font-size:1.15rem;">${e(application.legalName || "Unnamed applicant")}</h3>
+                            <span class="badge ${application.status === "approved" ? "badge-success" : application.status === "rejected" ? "badge-warning" : "badge-outline"}">
+                              ${e(String(application.status || "submitted").replaceAll("_", " "))}
+                            </span>
+                          </div>
+                          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
+                            Applicant UID: ${e(application.userId)}
+                          </div>
                         </div>
-                        <div class="admin-actions-group">
-                          <button class="button outline small" data-review-landlord="${e(application.id)}:changes_requested">Request changes</button>
-                          <button class="button primary small" data-review-landlord="${e(application.id)}:approved">${icon("shield-check")} Approve landlord</button>
+
+                        <div class="admin-actions-group" style="display:flex; gap:8px; flex-wrap:wrap;">
+                          ${
+                            application.status !== "rejected"
+                              ? `<button class="button outline small btn-danger-outline" data-review-landlord="${e(application.id)}:rejected" style="color:var(--danger); border-color:rgba(239,68,68,0.3);">
+                                  ${icon("ban")} Decline (Mismatch)
+                                </button>`
+                              : ""
+                          }
+                          <button class="button outline small" data-review-landlord="${e(application.id)}:changes_requested">
+                            Request Corrections
+                          </button>
+                          ${
+                            application.status !== "approved"
+                              ? `<button class="button primary small" data-review-landlord="${e(application.id)}:approved">
+                                  ${icon("shield-check")} Approve (Details Match)
+                                </button>`
+                              : ""
+                          }
                         </div>
                       </div>
-                      <div class="profile-grid-2" style="margin-top:14px; font-size:0.8125rem;">
-                        <div><strong>Property:</strong> ${e(application.propertyAddress)}</div>
-                        <div><strong>Ownership/lease:</strong> ${e(application.proofOfOwnershipRef)}</div>
-                        <div><strong>Business permit:</strong> ${e(application.businessPermitNumber)} · expires ${e(application.businessPermitExpires)}</div>
-                        <div><strong>Barangay clearance:</strong> ${e(application.barangayClearanceNumber)} · expires ${e(application.barangayClearanceExpires)}</div>
-                        <div><strong>Fire safety:</strong> ${e(application.fireSafetyNumber)} · expires ${e(application.fireSafetyExpires)}</div>
-                        <div><strong>Applicant UID:</strong> ${e(application.userId)}</div>
+
+                      <!-- Document Match Inspection Grid -->
+                      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px; padding-top:16px; border-top:1px solid var(--border-light);">
+                        <div style="background:var(--bg-surface); padding:14px; border:1px solid var(--border-light); border-radius:var(--radius-md);">
+                          <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:10px;">
+                            1. Submitted Permit Details
+                          </div>
+                          <div style="display:flex; flex-direction:column; gap:8px; font-size:0.875rem;">
+                            <div><span style="color:var(--text-secondary);">Legal Owner:</span> <strong>${e(application.legalName)}</strong></div>
+                            <div><span style="color:var(--text-secondary);">Property Address:</span> <strong>${e(application.propertyAddress)}</strong></div>
+                            <div><span style="color:var(--text-secondary);">Mayor's / Business Permit #:</span> <strong>${e(application.businessPermitNumber)}</strong> (exp: ${e(application.businessPermitExpires)})</div>
+                            <div><span style="color:var(--text-secondary);">Barangay Clearance #:</span> <strong>${e(application.barangayClearanceNumber)}</strong> (exp: ${e(application.barangayClearanceExpires)})</div>
+                            <div><span style="color:var(--text-secondary);">Fire Safety Certificate #:</span> <strong>${e(application.fireSafetyNumber)}</strong> (exp: ${e(application.fireSafetyExpires)})</div>
+                            <div><span style="color:var(--text-secondary);">Ownership Reference:</span> <strong>${e(application.proofOfOwnershipRef)}</strong></div>
+                          </div>
+                        </div>
+
+                        <div style="background:var(--bg-surface); padding:14px; border:1px solid var(--border-light); border-radius:var(--radius-md);">
+                          <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                            <span>2. Uploaded Mayor's Permit Document</span>
+                            ${application.mayorsPermitUrl ? `<span class="badge badge-success" style="font-size:0.7rem;">Document Attached</span>` : ""}
+                          </div>
+                          ${
+                            application.mayorsPermitUrl
+                              ? `
+                            <div style="display:flex; flex-direction:column; gap:10px;">
+                              <a href="${e(application.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" title="Click to view full size" style="display:block; max-height:220px; overflow:hidden; border-radius:var(--radius-sm); border:1px solid var(--border); background:#0f172a; text-align:center;">
+                                <img src="${e(application.mayorsPermitUrl)}" alt="Mayor's Permit Document" style="width:100%; height:auto; max-height:220px; object-fit:contain; margin:0 auto;" />
+                              </a>
+                              <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span style="font-size:0.75rem; color:var(--text-muted);">Verify permit number, business name & seal match</span>
+                                <a href="${e(application.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" class="button outline small" style="padding:4px 10px; font-size:0.75rem;">
+                                  ${icon("external-link")} View Full Size
+                                </a>
+                              </div>
+                            </div>
+                          `
+                              : `
+                            <div style="background:rgba(239,68,68,0.06); border:1px dashed rgba(239,68,68,0.4); border-radius:var(--radius-md); padding:24px 16px; text-align:center; color:var(--danger); font-size:0.875rem;">
+                              <div style="font-size:1.5rem; margin-bottom:6px;">${icon("alert-circle")}</div>
+                              <strong>No Mayor's Permit uploaded</strong>
+                              <p style="margin:4px 0 0; font-size:0.75rem; color:var(--text-secondary);">Decline or request document upload from applicant.</p>
+                            </div>
+                          `
+                          }
+                        </div>
                       </div>
+
                       ${application.missingItems?.length ? `<div class="notice warning" style="margin-top:12px;">Missing: ${application.missingItems.map((item) => e(item)).join(", ")} ${e(application.reviewNotes || "")}</div>` : ""}
+                      ${application.reviewNotes && application.status === "rejected" ? `<div class="notice danger" style="margin-top:12px; background:rgba(239,68,68,0.08); color:var(--danger); border:1px solid rgba(239,68,68,0.3); padding:10px 14px; border-radius:var(--radius-md);"><strong>Decline Reason:</strong> ${e(application.reviewNotes)}</div>` : ""}
                     </article>`).join("")
                   : `<div class="detail-section"><p class="text-muted">No landlord permit applications submitted.</p></div>`
               }
@@ -3740,13 +3835,33 @@ document.addEventListener("click", async (event) => {
       } catch (err) {
         toast(err.message);
       }
+    } else if (status === "rejected") {
+      modal(`
+        <form id="admin-landlord-review-form">
+          <h2 style="color:var(--danger); display:flex; align-items:center; gap:8px;">
+            ${icon("ban")} Decline Landlord Application
+          </h2>
+          <input type="hidden" name="uid" value="${e(uid)}">
+          <input type="hidden" name="reviewStatus" value="rejected">
+          <p style="font-size:0.875rem; color:var(--text-secondary); margin-bottom:14px; line-height:1.5;">
+            State why this permit application does not match the uploaded Mayor's permit or fails verification criteria.
+          </p>
+          <label>Reason for declining (recorded and shown to applicant)
+            <textarea name="reviewNotes" required maxlength="1000" rows="4" placeholder="e.g. The uploaded Mayor's permit business name or property address does not match your submitted application details."></textarea>
+          </label>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="button primary full" style="background:var(--danger); border-color:var(--danger);" type="submit">Confirm Decline</button>
+            <button type="button" class="button outline full" onclick="this.closest('dialog').close();">Cancel</button>
+          </div>
+        </form>`);
     } else {
       modal(`
         <form id="admin-landlord-review-form">
           <h2>Request permit corrections</h2>
           <input type="hidden" name="uid" value="${e(uid)}">
-          <label>Missing fields (comma-separated)
-            <input name="missingItems" required maxlength="300" placeholder="businessPermitNumber, fireSafetyExpires">
+          <input type="hidden" name="reviewStatus" value="changes_requested">
+          <label>Missing or mismatched fields (comma-separated)
+            <input name="missingItems" required maxlength="300" placeholder="mayorsPermitUrl, businessPermitNumber, fireSafetyExpires">
           </label>
           <label>Instructions for the landlord
             <textarea name="reviewNotes" required maxlength="1000" rows="4" placeholder="Explain exactly what must be corrected."></textarea>
@@ -4306,23 +4421,34 @@ document.addEventListener("submit", async (event) => {
         toast("Profile updated successfully!");
         route();
         break;
-      case "landlord-application-form":
+      case "landlord-application-form": {
+        let mayorsPermitUrl = values.mayorsPermitUrl || "";
+        const fileInput = form.querySelector('input[name="mayorsPermitFile"]');
+        if (fileInput && fileInput.files && fileInput.files[0]) {
+          toast("Uploading Mayor's Permit document...");
+          mayorsPermitUrl = await api.uploadMedia(fileInput.files[0]);
+        }
+        if (!mayorsPermitUrl) {
+          throw new Error("Please upload a photo or scan of your official Mayor's Permit before submitting.");
+        }
         await api.submitLandlordApplication({
           ...values,
+          mayorsPermitUrl,
           consent: data.has("consent"),
         });
         toast("Permit application submitted for administrator review.");
         route();
         break;
+      }
       case "admin-landlord-review-form":
         await api.reviewLandlordApplication(
           values.uid,
-          "changes_requested",
+          values.reviewStatus || "changes_requested",
           String(values.missingItems || "").split(",").map((item) => item.trim()).filter(Boolean),
           values.reviewNotes,
         );
         $("#modal")?.close();
-        toast("The landlord was notified which permit details need correction.");
+        toast(values.reviewStatus === "rejected" ? "Landlord application was declined." : "The landlord was notified which permit details need correction.");
         route();
         break;
       case "change-password-form": {

@@ -10,3 +10,5 @@ dist/
 service-account*.json
 .tools/
 scripts/admin/node_modules/
+SECURITY-REVIEW.json
+*.zip

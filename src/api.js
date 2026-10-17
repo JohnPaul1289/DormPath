@@ -416,14 +416,15 @@ export async function submitLandlordApplication(data) {
     barangayClearanceExpires: String(data.barangayClearanceExpires || "").trim(),
     fireSafetyNumber: String(data.fireSafetyNumber || "").trim(),
     fireSafetyExpires: String(data.fireSafetyExpires || "").trim(),
+    mayorsPermitUrl: String(data.mayorsPermitUrl || "").trim(),
     consent: data.consent === true || data.consent === "on",
   };
   const missing = Object.entries(clean)
     .filter(([key, value]) => key !== "userId" && (value === "" || value === false))
     .map(([key]) => key);
-  if (missing.length) throw Error(`Complete all permit fields: ${missing.join(", ")}.`);
+  if (missing.length) throw Error(`Complete all permit fields and upload Mayor's Permit: ${missing.join(", ")}.`);
   for (const [label, value] of [
-    ["business permit", clean.businessPermitExpires],
+    ["business / mayor's permit", clean.businessPermitExpires],
     ["barangay clearance", clean.barangayClearanceExpires],
     ["fire safety certificate", clean.fireSafetyExpires],
   ]) {

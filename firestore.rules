@@ -27,11 +27,12 @@ service cloud.firestore {
       }
     }
     function validLandlordApplication(a, uid) {
-      return a.keys().hasOnly(['userId','legalName','propertyAddress','proofOfOwnershipRef','businessPermitNumber','businessPermitExpires','barangayClearanceNumber','barangayClearanceExpires','fireSafetyNumber','fireSafetyExpires','consent','status','missingItems','reviewNotes','createdAt','submittedAt','updatedAt','reviewedAt'])
+      return a.keys().hasOnly(['userId','legalName','propertyAddress','proofOfOwnershipRef','businessPermitNumber','businessPermitExpires','barangayClearanceNumber','barangayClearanceExpires','fireSafetyNumber','fireSafetyExpires','consent','status','missingItems','reviewNotes','createdAt','submittedAt','updatedAt','reviewedAt','mayorsPermitUrl'])
         && a.userId == uid && text(a.legalName,120) && text(a.propertyAddress,250) && text(a.proofOfOwnershipRef,120)
         && text(a.businessPermitNumber,100) && a.businessPermitExpires is string && a.businessPermitExpires.size() == 10
         && text(a.barangayClearanceNumber,100) && a.barangayClearanceExpires is string && a.barangayClearanceExpires.size() == 10
         && text(a.fireSafetyNumber,100) && a.fireSafetyExpires is string && a.fireSafetyExpires.size() == 10
+        && (!('mayorsPermitUrl' in a) || a.mayorsPermitUrl == '' || photo(a.mayorsPermitUrl))
         && a.consent == true && a.status in ['submitted','changes_requested','approved','rejected']
         && a.missingItems is list && a.missingItems.size() <= 9 && a.reviewNotes is string && a.reviewNotes.size() <= 1000
         && a.createdAt is timestamp && a.submittedAt is timestamp && a.updatedAt is timestamp;
