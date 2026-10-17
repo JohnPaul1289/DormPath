@@ -182,6 +182,31 @@ function toast(message) {
   }
 }
 
+function formatAuthError(err) {
+  if (!err) return "An unexpected error occurred.";
+  const code = err.code || "";
+  const msg = err.message || "";
+  if (code.includes("configuration-not-found") || msg.includes("configuration-not-found")) {
+    return "Firebase Authentication sign-in methods are not enabled yet. Please go to Firebase Console > Authentication > Sign-in method and enable Email/Password and Google.";
+  }
+  if (code === "auth/email-already-in-use") {
+    return "This email is already registered. Please sign in instead.";
+  }
+  if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+    return "Invalid email or password. Please check your credentials.";
+  }
+  if (code === "auth/weak-password") {
+    return "Password is too weak. Please use at least 8 characters with letters and numbers.";
+  }
+  if (code === "auth/popup-blocked") {
+    return "The Google sign-in popup was blocked by your browser. Please allow popups for this site.";
+  }
+  if (code === "auth/popup-closed-by-user") {
+    return "";
+  }
+  return err.message || "Authentication failed. Please try again.";
+}
+
 function refreshIcons() {
   createIcons({ icons, attrs: { "stroke-width": 1.7 } });
 }
@@ -1609,9 +1634,34 @@ async function route() {
 
   const [page = "home", id] = location.hash.replace(/^#\/?/, "").split("/");
 
-  // Determine Layout Structure
+  // Determine Layout Structure & Page Types
   const isAuth = ["login", "register", "reset-password"].includes(page);
-  const isPublic = ["home", "about"].includes(page);
+  const isPublic = ["home", "about", "search", "map", "property", "wanted"].includes(page);
+  const isProtected = [
+    "dashboard",
+    "favorites",
+    "properties",
+    "add-property",
+    "edit-property",
+    "rooms",
+    "messages",
+    "profile",
+    "admin",
+    "notifications",
+  ].includes(page);
+
+  // If user is not signed in and tries to access a protected workspace page
+  if (isProtected && !api.currentUser) {
+    location.hash = "/login";
+    toast("Please sign in or create an account to access that page.");
+    return;
+  }
+
+  // If user is already signed in and accesses login/register, send to dashboard
+  if (isAuth && api.currentUser) {
+    location.hash = "/dashboard";
+    return;
+  }
 
   let innerHTML = "";
 
@@ -1713,6 +1763,11 @@ async function route() {
     }
   } catch (err) {
     if (version === routeVersion) {
+      if (err.message?.includes("sign in")) {
+        location.hash = "/login";
+        toast("Please sign in to continue.");
+        return;
+      }
       $("#app").innerHTML = `<div style="padding:40px; text-align:center;">${empty("Error loading page", e(err.message), button("Try Again", "retry"))}</div>`;
       refreshIcons();
     }
@@ -1823,9 +1878,8 @@ document.addEventListener("click", async (event) => {
         await api.loginWithGoogle(state.selectedRole || "student");
         location.hash = "/dashboard";
       } catch (err) {
-        if (err?.code !== "auth/popup-closed-by-user") {
-          toast(err?.message || "Google sign-in could not be completed.");
-        }
+        const msg = formatAuthError(err);
+        if (msg) toast(msg);
       }
       break;
     }
@@ -2002,7 +2056,8 @@ document.addEventListener("submit", async (event) => {
         break;
     }
   } catch (err) {
-    toast(err.message);
+    const msg = formatAuthError(err);
+    if (msg) toast(msg);
   }
 });
 
