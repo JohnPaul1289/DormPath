@@ -124,7 +124,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 a {
@@ -713,12 +713,16 @@ label.check input[type="checkbox"] {
 .public-navbar {
   position: sticky;
   top: 0;
-  z-index: 50;
-  background: rgba(255, 255, 255, 0.88);
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
   transition: background var(--duration-fast);
+}
+
+[data-theme="dark"] .public-navbar {
+  background: rgba(11, 15, 23, 0.92);
 }
 
 .public-navbar-inner {
@@ -1324,7 +1328,9 @@ label.check input[type="checkbox"] {
 
 .app-topbar {
   height: var(--topbar-height);
-  background: var(--bg-surface);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
   padding: 0 32px;
   display: flex;
@@ -1332,7 +1338,11 @@ label.check input[type="checkbox"] {
   justify-content: space-between;
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: 90;
+}
+
+[data-theme="dark"] .app-topbar {
+  background: rgba(19, 27, 42, 0.92);
 }
 
 .app-topbar-left {
@@ -1911,3 +1921,244 @@ label.check input[type="checkbox"] {
     height: 240px;
   }
 }
+
+/* ==============================================================================
+   DOMI AI CONVERSATION VIEW (UNLIMITED CHAT)
+   ============================================================================== */
+.domi-chat-wrapper {
+  max-width: 900px;
+  margin: 0 auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 160px);
+  min-height: 560px;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.domi-chat-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+}
+
+.domi-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.domi-header-mascot {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(40, 85, 232, 0.15));
+}
+
+.domi-prompt-chips {
+  padding: 12px 20px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.domi-prompt-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.domi-chip {
+  padding: 6px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  flex-shrink: 0;
+}
+
+.domi-chip:hover {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.domi-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.domi-msg {
+  display: flex;
+  gap: 12px;
+  max-width: 82%;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.domi-msg.domi {
+  align-self: flex-start;
+}
+
+.domi-msg.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.domi-msg-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.domi-msg-avatar img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.domi-msg-avatar.user-avatar {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.domi-msg-bubble {
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  box-shadow: var(--shadow-xs);
+}
+
+.domi-msg.domi .domi-msg-bubble {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-top-left-radius: 4px;
+}
+
+.domi-msg.user .domi-msg-bubble {
+  background: var(--primary);
+  color: #ffffff;
+  border-top-right-radius: 4px;
+}
+
+.domi-msg-time {
+  display: block;
+  font-size: 0.6875rem;
+  margin-top: 6px;
+  opacity: 0.7;
+}
+
+.domi-composer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.domi-composer input {
+  flex: 1;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--text-main);
+}
+
+.domi-composer input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-subtle);
+}
+
+/* Policy Pages */
+.policy-page {
+  max-width: 860px;
+  margin: 40px auto;
+  padding: 0 24px 60px;
+}
+
+.policy-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: var(--shadow-sm);
+}
+
+.policy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+.policy-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-light);
+}
+
+.policy-section h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--text-main);
+}
+
+.policy-section p, .policy-section li {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.policy-section ul {
+  margin: 12px 0 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.policy-callout {
+  background: var(--bg-subtle);
+  border-left: 4px solid var(--primary);
+  padding: 16px 20px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  margin: 16px 0;
+}
+

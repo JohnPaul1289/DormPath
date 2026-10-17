@@ -76,6 +76,14 @@ export function summarizeRooms(rooms) {
 }
 export function domiReply(text, properties) {
   const q = text.toLowerCase();
+  if (/scam|phish|fake|safe|fraud|beware/.test(q))
+    return "Safety first! (1) Never send reservation money via GCash or wire transfer before inspecting the room in person. (2) Look for the 'Verified Owner' badge on DormPath before transacting. (3) Always formalize agreements with a written receipt or tenancy contract specifying monthly rent and deposit refund conditions. (4) DormPath is free for students and will never request your password or payment.";
+  if (/hello|hi\b|kumusta|hey\b|who are you|what can you do/.test(q))
+    return "Kumusta! I am DOMI, your 24/7 Tuguegarao housing guide. You can ask me to find rooms under your budget (e.g., 'rooms under ₱3,000'), explain advance and deposit rules, find dorms near your school (CSU Carig/Andrews, USL, SPUP), or draft a polite inquiry message to an owner!";
+  if (/csu|carig|andrews|usl|spup|university|campus|school/.test(q))
+    return "Tuguegarao student housing is centered around CSU Carig (Engineering/Medicine/Tech), CSU Andrews (Main), USL (Bonifacio St.), and SPUP (Mabini St.). You can use our quick campus pills in Explore Rooms or Map View to find places within walking or easy tricycle distance!";
+  if (/wifi|wi-fi|aircon|\bac\b|kitchen|laundry|amenit/.test(q))
+    return "Many student boarding houses in Tuguegarao feature high-speed Wi-Fi for coursework and air conditioning for the warm climate. Check each property's 'Utilities policy' on the details page to confirm if electricity for air conditioning is sub-metered or bundled into the monthly rent.";
   if (/description|write.*listing/.test(q))
     return "A clear description should include your property’s real location, room type, monthly rent, deposit and advance, utilities, amenities, current vacancies and house rules. Keep promises specific and confirm every detail. You can describe the room’s natural light or study space only if the property genuinely has them.";
   if (/draft|message|reply/.test(q))

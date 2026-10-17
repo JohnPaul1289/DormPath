@@ -142,6 +142,13 @@ const state = {
   filters: {},
   chat: null,
   selectedRole: "student",
+  domiHistory: [
+    {
+      role: "domi",
+      text: "Kumusta! I am DOMI, your 24/7 AI housing companion for Tuguegarao City. Ask me anything about student boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
+      time: "Just now",
+    },
+  ],
 };
 
 let unsubscribe = () => {},
@@ -255,6 +262,7 @@ function publicLayout(content) {
             <a href="#/search" class="nav-link">Explore Rooms</a>
             <a href="#/map" class="nav-link">Map View</a>
             <a href="#/wanted" class="nav-link">Kwarto Wanted</a>
+            <a href="#/domi" class="nav-link">${icon("sparkles")} Ask DOMI</a>
             <a href="#/about" class="nav-link">How It Works</a>
           </nav>
           <div class="nav-actions">
@@ -303,17 +311,18 @@ function publicLayout(content) {
             </ul>
           </div>
           <div class="footer-col">
-            <h4>Owners</h4>
+            <h4>Trust & Privacy</h4>
             <ul>
+              <li><a href="#/privacy">Data Privacy (RA 10173)</a></li>
+              <li><a href="#/terms">Terms of Service</a></li>
               <li><a href="#/register">List Your Property</a></li>
-              <li><a href="#/about">Owner Verification</a></li>
-              <li><a href="#/about">Terms & Community</a></li>
+              <li><a href="#/domi">DOMI AI Assistant</a></li>
             </ul>
           </div>
         </div>
         <div class="footer-bottom">
           <span>© ${new Date().getFullYear()} DormPath. Tuguegarao City, Cagayan, Philippines.</span>
-          <span>Zero student booking fees · Verified property owners</span>
+          <span>Zero student booking fees · Verified property owners · RA 10173 Compliant</span>
         </div>
       </footer>
     </div>
@@ -344,6 +353,7 @@ function appLayout(content) {
           ${navItem("search", "Explore Rooms", "search")}
           ${navItem("map", "Map View", "map")}
           ${navItem("wanted", "Kwarto Wanted", "message-square-plus")}
+          ${navItem("domi", "Ask DOMI AI", "sparkles")}
         </div>
 
         <div class="sidebar-nav-group">
@@ -393,9 +403,9 @@ function appLayout(content) {
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
-            <button class="button text-button" data-action="domi">
+            <a href="#/domi" class="button text-button">
               ${icon("sparkles")} Ask DOMI
-            </button>
+            </a>
             ${
               api.profile?.role === "landlord" && api.profile?.verified
                 ? `<a href="#/add-property" class="button primary small">${icon("plus")} Add Property</a>`
@@ -422,14 +432,14 @@ function appLayout(content) {
         <a href="#/search" class="${current === "search" ? "active" : ""}">
           ${icon("search")} <span>Search</span>
         </a>
+        <a href="#/domi" class="${current === "domi" ? "active" : ""}">
+          ${icon("sparkles")} <span>DOMI AI</span>
+        </a>
         <a href="#/favorites" class="${current === "favorites" ? "active" : ""}">
           ${icon("heart")} <span>Saved</span>
         </a>
         <a href="#/messages" class="${current === "messages" ? "active" : ""}">
           ${icon("messages-square")} <span>Chat</span>
-        </a>
-        <a href="#/profile" class="${current === "profile" ? "active" : ""}">
-          ${icon("user-round")} <span>You</span>
         </a>
       </nav>
     </div>
@@ -1590,6 +1600,221 @@ function about() {
   `;
 }
 
+// Republic Act No. 10173 Compliant Data Privacy Policy
+function privacyPage() {
+  return `
+    <div class="policy-page">
+      <div class="policy-card">
+        <div class="policy-badge">${icon("shield-check")} Republic Act No. 10173 Compliant</div>
+        <h1>Data Privacy Policy</h1>
+        <p style="color:var(--text-secondary); margin-top:8px;">
+          Last updated: October 2026 · Tuguegarao City, Cagayan, Philippines
+        </p>
+
+        <div class="policy-callout">
+          <strong>Our Core Student Guarantee (₱0 Fees, Zero Data Selling):</strong>
+          <p style="margin-top:6px; font-size:0.875rem;">
+            DormPath is a student-first public service platform. We NEVER sell, lease, or monetize your personal information to third-party data brokers or advertisers. Browse without tracking, search without sign-up.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h3>1. Scope and Legal Basis</h3>
+          <p>
+            DormPath operates in full compliance with the <strong>Data Privacy Act of 2012 (Republic Act No. 10173)</strong> of the Republic of the Philippines and its Implementing Rules and Regulations (IRR). This policy describes how we collect, protect, process, and respect the privacy rights of students, renters, and property owners in Tuguegarao City.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h3>2. Information We Collect</h3>
+          <ul>
+            <li><strong>Student & Renter Accounts:</strong> Display name, email address, and optional saved bookmarks/preferences. We do not require or collect student payment cards or sensitive personal financial data.</li>
+            <li><strong>Property Owner / Landlord Accounts:</strong> Contact details, property titles, physical street addresses, and proof of ownership / barangay verification documents.</li>
+            <li><strong>Direct In-Platform Messages:</strong> Securely transmitted conversations between students and landlords solely for arranging inquiries and viewings.</li>
+            <li><strong>Technical Telemetry:</strong> Minimal session tokens, device viewport characteristics, and offline cache preferences stored locally in your browser.</li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h3>3. Confidential Landlord Verification Documents</h3>
+          <p>
+            Government-issued identification cards and barangay verification records uploaded by property owners are subject to strict data compartmentalization. These files are encrypted at rest, accessible strictly by authenticated platform administrators for identity audit, and are <strong>NEVER displayed publicly</strong> or shared with other users.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h3>4. Data Security & Storage Architecture</h3>
+          <p>
+            Your information is protected through multi-layered industry safeguards:
+          </p>
+          <ul>
+            <li><strong>Cryptographic Authorization:</strong> Authentication is verified via Firebase Identity Platform with short-lived JSON Web Tokens (JWT).</li>
+            <li><strong>Row-Level Firestore Security Rules:</strong> Unauthenticated reads or writes to private chats, reports, or verification queues are rejected at the database level.</li>
+            <li><strong>HMAC-SHA256 Signed Uploads:</strong> Media uploads through Cloudinary require cryptographic server-side signatures; anonymous write access is blocked.</li>
+            <li><strong>HTTPS & Content Security:</strong> Enforced TLS 1.3 encryption, Content Security Policies (CSP), and Strict-Transport-Security.</li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h3>5. Anti-Phishing & Anti-Scam Protection</h3>
+          <div class="policy-callout" style="border-left-color:var(--danger);">
+            <strong>Protect Yourself from Fraud:</strong>
+            <ul style="margin:8px 0 0 16px; font-size:0.875rem;">
+              <li>DormPath administrators will <strong>NEVER</strong> contact you asking for your password, OTP, or advance reservation fees.</li>
+              <li>Always inspect rooms physically in Tuguegarao before transferring security deposits.</li>
+              <li>Only transact with landlords displaying the official <strong>Verified Owner</strong> badge.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="policy-section">
+          <h3>6. Your Rights as a Data Subject</h3>
+          <p>Under the Philippine Data Privacy Act of 2012, you possess the right to:</p>
+          <ul>
+            <li><strong>Access:</strong> Request a copy of all personal information DormPath holds about you.</li>
+            <li><strong>Rectification:</strong> Correct or update any inaccurate profile details at any time in your Settings.</li>
+            <li><strong>Erasure / Deletion:</strong> Permanently delete your account, saved favorites, and associated messages.</li>
+            <li><strong>Data Portability:</strong> Clear or export your cached offline storage via the Profile settings tab.</li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h3>7. Contact Our Data Protection Officer</h3>
+          <p>
+            For any questions, verification inquiries, or data privacy requests, contact the DormPath administration team at:
+            <br><strong>privacy@dormpath.ph</strong> · Tuguegarao City, Cagayan Valley, 3500.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Community Terms of Service & Housing Rules
+function termsPage() {
+  return `
+    <div class="policy-page">
+      <div class="policy-card">
+        <div class="policy-badge">${icon("heart-handshake")} Community Trust</div>
+        <h1>Terms of Service</h1>
+        <p style="color:var(--text-secondary); margin-top:8px;">
+          Fair, honest, and safe housing for Tuguegarao City
+        </p>
+
+        <div class="policy-section">
+          <h3>1. The DormPath Community Standard</h3>
+          <p>
+            DormPath was created to make finding a home near Cagayan State University (Carig & Andrews), University of Saint Louis, St. Paul University Philippines, and other local schools safe, transparent, and respectful.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h3>2. Honest Vacancy Policy for Landlords</h3>
+          <p>
+            Property owners listing boarding houses, dormitories, or apartments must:
+          </p>
+          <ul>
+            <li>Accurately update room availability and total capacity numbers.</li>
+            <li>Disclose real monthly rental rates, security deposits, and advance payments without hidden platform fees.</li>
+            <li>Clearly specify utilities policies (e.g. Wi-Fi inclusion, electricity sub-meters for air conditioning).</li>
+            <li>Never post fake listings, fabricated photos, or misleading room types.</li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h3>3. Zero Student Fees</h3>
+          <p>
+            Students browse, filter, save, and message landlords completely free of charge. DormPath charges no transaction fees, viewing commissions, or booking markups.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h3>4. Safety & Tenancy Guidelines</h3>
+          <p>
+            All agreements, room rentals, and security deposits are established directly between the student and the property owner. Students are strongly advised to perform a physical ocular inspection of the premises and request an official written receipt or contract prior to paying any deposit.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Dedicated DOMI AI Assistant Page (Unlimited Turns)
+function domiPage() {
+  const messagesHtml = (state.domiHistory || [])
+    .map((m) => {
+      const isUser = m.role === "user";
+      return `
+        <div class="domi-msg ${isUser ? "user" : "domi"}">
+          ${
+            !isUser
+              ? `<div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI AI" /></div>`
+              : ""
+          }
+          <div class="domi-msg-bubble">
+            <div class="domi-msg-text">${e(m.text)}</div>
+            <span class="domi-msg-time">${e(m.time)}</span>
+          </div>
+          ${
+            isUser
+              ? `<div class="domi-msg-avatar user-avatar">${(api.profile?.name || "U")[0].toUpperCase()}</div>`
+              : ""
+          }
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="domi-chat-wrapper">
+      <div class="domi-chat-header">
+        <div class="domi-header-left">
+          <img src="/domi.png" class="domi-header-mascot" alt="DOMI Mascot" />
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <h2 style="font-size:1.25rem;">DOMI AI Assistant</h2>
+              <span class="badge badge-success" style="font-size:0.6875rem;">Online · Unlimited</span>
+            </div>
+            <p style="font-size:0.8125rem; color:var(--text-secondary); margin-top:2px;">
+              Your 24/7 Tuguegarao housing companion · Powered by real verified listings
+            </p>
+          </div>
+        </div>
+        <button class="button outline small" data-action="clear-domi" title="Reset chat history">
+          ${icon("trash-2")} Reset
+        </button>
+      </div>
+
+      <div class="domi-prompt-chips">
+        <button class="domi-chip" data-ask="Find rooms under ₱3,000">💰 Under ₱3,000</button>
+        <button class="domi-chip" data-ask="Dorms near CSU Carig">🎓 Near CSU Carig</button>
+        <button class="domi-chip" data-ask="Boarding houses near USL and SPUP">📍 Near USL / SPUP</button>
+        <button class="domi-chip" data-ask="Places with Wi-Fi and air conditioning">📶 Wi-Fi & AC</button>
+        <button class="domi-chip" data-ask="What are typical deposit and advance rates?">📋 Deposit & Advance</button>
+        <button class="domi-chip" data-ask="Draft a polite inquiry message to a landlord">✉️ Draft Message</button>
+        <button class="domi-chip" data-ask="How to avoid housing scams in Tuguegarao?">🛡️ Anti-Scam Tips</button>
+      </div>
+
+      <div id="domi-chat-stream" class="domi-chat-messages">
+        ${messagesHtml}
+      </div>
+
+      <form id="domi-chat-form" class="domi-composer">
+        <input
+          name="question"
+          id="domi-chat-input"
+          placeholder="Ask DOMI anything about rooms, budgets, or landlords in Tuguegarao..."
+          required
+          autocomplete="off"
+        />
+        <button class="button primary" type="submit" aria-label="Send question">
+          ${icon("sparkles")} <span>Send</span>
+        </button>
+      </form>
+    </div>
+  `;
+}
+
 function modal(content) {
   const m = $("#modal");
   if (!m) return;
@@ -1632,11 +1857,24 @@ async function route() {
     map = null;
   }
 
-  const [page = "home", id] = location.hash.replace(/^#\/?/, "").split("/");
+  const cleanHash = location.hash.replace(/^#\/?/, "").trim();
+  const segments = cleanHash ? cleanHash.split("/") : [];
+  const page = segments[0] || "home";
+  const id = segments[1] || "";
 
   // Determine Layout Structure & Page Types
   const isAuth = ["login", "register", "reset-password"].includes(page);
-  const isPublic = ["home", "about", "search", "map", "property", "wanted"].includes(page);
+  const isPublic = [
+    "home",
+    "about",
+    "search",
+    "map",
+    "property",
+    "wanted",
+    "domi",
+    "privacy",
+    "terms",
+  ].includes(page);
   const isProtected = [
     "dashboard",
     "favorites",
@@ -1733,6 +1971,15 @@ async function route() {
       case "about":
         innerHTML = about();
         break;
+      case "privacy":
+        innerHTML = privacyPage();
+        break;
+      case "terms":
+        innerHTML = termsPage();
+        break;
+      case "domi":
+        innerHTML = domiPage();
+        break;
       default:
         innerHTML = empty("Page not found", "Let's head back home.", `<a href="#/home" class="button primary">Back Home</a>`);
     }
@@ -1749,6 +1996,12 @@ async function route() {
     }
 
     refreshIcons();
+
+    if (page === "domi") {
+      const stream = $("#domi-chat-stream");
+      if (stream) stream.scrollTop = stream.scrollHeight;
+      $("#domi-chat-input")?.focus();
+    }
 
     if (page === "map") await mountMap();
 
@@ -1796,8 +2049,21 @@ async function mountMap() {
    GLOBAL EVENT DELEGATION
    ============================================================================== */
 document.addEventListener("click", async (event) => {
-  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save]");
+  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], .domi-chip");
   if (!el) return;
+
+  // DOMI prompt chip clicked
+  const chip = el.closest(".domi-chip");
+  if (chip) {
+    const q = chip.dataset.ask;
+    const inp = $("#domi-chat-input");
+    if (inp) {
+      inp.value = q;
+      inp.focus();
+      $("#domi-chat-form")?.requestSubmit();
+    }
+    return;
+  }
 
   // Role card selection in register
   if (el.dataset.roleSelect) {
@@ -1889,20 +2155,17 @@ document.addEventListener("click", async (event) => {
       location.hash = "/home";
       break;
     case "domi":
-      modal(`
-        <div style="text-align:center; margin-bottom:20px;">
-          <img src="/domi.png" style="width:72px; height:72px; object-fit:contain; margin:0 auto 8px;">
-          <h2>Ask DOMI AI</h2>
-          <p>Local housing suggestions based on loaded Tuguegarao listings.</p>
-        </div>
-        <div id="domi-answer" class="detail-section" style="background:var(--bg-subtle);">
-          Hi! Ask me about budgets, campus distances, or draft messages to owners.
-        </div>
-        <form id="domi-form" style="display:flex; gap:8px;">
-          <input name="question" required placeholder="e.g. Find rooms under ₱3,000...">
-          <button class="button primary">${icon("sparkles")}</button>
-        </form>
-      `);
+      location.hash = "/domi";
+      break;
+    case "clear-domi":
+      state.domiHistory = [
+        {
+          role: "domi",
+          text: "Kumusta! I am DOMI, your 24/7 AI housing companion for Tuguegarao City. Ask me anything about student boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ];
+      route();
       break;
     case "close-modal":
       $("#modal")?.close();
@@ -1990,6 +2253,37 @@ document.addEventListener("submit", async (event) => {
         toast("Profile updated.");
         route();
         break;
+      case "domi-chat-form": {
+        const text = values.question?.trim();
+        if (!text) break;
+        const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        state.domiHistory.push({ role: "user", text, time: now });
+        const reply = domiReply(text, state.properties);
+        state.domiHistory.push({ role: "domi", text: reply, time: now });
+        form.reset();
+
+        const stream = $("#domi-chat-stream");
+        if (stream) {
+          stream.innerHTML = state.domiHistory
+            .map((m) => {
+              const isUser = m.role === "user";
+              return `
+                <div class="domi-msg ${isUser ? "user" : "domi"}">
+                  ${!isUser ? `<div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI AI" /></div>` : ""}
+                  <div class="domi-msg-bubble">
+                    <div class="domi-msg-text">${e(m.text)}</div>
+                    <span class="domi-msg-time">${e(m.time)}</span>
+                  </div>
+                  ${isUser ? `<div class="domi-msg-avatar user-avatar">${(api.profile?.name || "U")[0].toUpperCase()}</div>` : ""}
+                </div>
+              `;
+            })
+            .join("");
+          stream.scrollTop = stream.scrollHeight;
+        }
+        $("#domi-chat-input")?.focus();
+        break;
+      }
       case "domi-form":
         $("#domi-answer").textContent = domiReply(values.question, state.properties);
         break;
