@@ -1,5 +1,6 @@
 import "./style.css";
-import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
+import * as maplibregl from "maplibre-gl";
 import {
   createIcons,
   House,
@@ -35,6 +36,8 @@ import {
   Navigation,
   Flag,
   Plus,
+  Minus,
+  Crosshair,
   Send,
   X,
   Check,
@@ -94,6 +97,8 @@ const icons = {
   Navigation,
   Flag,
   Plus,
+  Minus,
+  Crosshair,
   Send,
   X,
   Check,
@@ -260,8 +265,7 @@ function publicLayout(content) {
           </a>
           <nav class="nav-links">
             <a href="#/search" class="nav-link">Explore Rooms</a>
-            <a href="#/map" class="nav-link">Map View</a>
-            <a href="#/wanted" class="nav-link">Kwarto Wanted</a>
+            <a href="#/map" class="nav-link">${icon("map")} 3D Map View</a>
             <a href="#/domi" class="nav-link">${icon("sparkles")} Ask DOMI</a>
             <a href="#/about" class="nav-link">How It Works</a>
           </nav>
@@ -308,13 +312,13 @@ function publicLayout(content) {
               <li><a href="#/search">Boarding Houses</a></li>
               <li><a href="#/search">Dormitories</a></li>
               <li><a href="#/search">Apartments</a></li>
-              <li><a href="#/map">City Map View</a></li>
+              <li><a href="#/map">3D City Map</a></li>
             </ul>
           </div>
           <div class="footer-col">
             <h4>Students</h4>
             <ul>
-              <li><a href="#/wanted">Kwarto Wanted</a></li>
+              <li><a href="#/search">Browse Available Rooms</a></li>
               <li><a href="#/about">Student Promise (₱0 Fees)</a></li>
               <li><a href="#/login">Student Login</a></li>
             </ul>
@@ -365,7 +369,6 @@ function appLayout(content) {
             ${navItem("dashboard", "Dashboard", "layout-dashboard")}
             ${navItem("properties", "My Properties", "building-2")}
             ${navItem("add-property", "Add Property", "plus-circle")}
-            ${navItem("wanted", "Tenant Demand", "users")}
             <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
               <div class="sidebar-link-left">
                 ${icon("messages-square")}
@@ -381,7 +384,7 @@ function appLayout(content) {
           <div class="sidebar-nav-group">
             <div class="sidebar-caption">DISCOVER & MARKET</div>
             ${navItem("search", "Market Listings", "search")}
-            ${navItem("map", "Tuguegarao Map", "map")}
+            ${navItem("map", "3D Tuguegarao Map", "map")}
             ${navItem("domi", "Ask DOMI AI", "sparkles")}
           </div>
         `
@@ -389,8 +392,7 @@ function appLayout(content) {
           <div class="sidebar-nav-group">
             <div class="sidebar-caption">FIND HOUSING</div>
             ${navItem("search", "Explore Rooms", "search")}
-            ${navItem("map", "Map View", "map")}
-            ${navItem("wanted", "Kwarto Wanted", "message-square-plus")}
+            ${navItem("map", "3D Map View", "map")}
             ${navItem("domi", "Ask DOMI AI", "sparkles")}
           </div>
 
@@ -660,9 +662,14 @@ function home() {
               ${TYPES.map((t) => `<option value="${t}" ${state.filters.type === t ? "selected" : ""}>${t}</option>`).join("")}
             </select>
           </div>
-          <button class="button primary" type="submit">
-            ${icon("search")} <span>Find Rooms</span>
-          </button>
+          <div style="display:flex; gap:8px;">
+            <button class="button primary" type="submit" style="white-space:nowrap;">
+              ${icon("search")} <span>Find Rooms</span>
+            </button>
+            <a href="#/map" class="button outline" style="height:48px; border-radius:var(--radius-full); font-weight:700; white-space:nowrap; gap:6px; display:inline-flex; align-items:center;">
+              ${icon("map")} <span>3D Map</span>
+            </a>
+          </div>
         </form>
 
         <div class="hero-campus-chips">
@@ -721,6 +728,39 @@ function home() {
           <div>
             <strong>DOMI AI Helper</strong>
             <span>Smart budget advice & message drafts</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3D Map Showcase Banner -->
+    <section class="landing-section" style="padding-top:0;">
+      <div class="map3d-teaser-banner">
+        <div class="map3d-teaser-content">
+          <div class="badge" style="background:rgba(255,255,255,0.2); color:#ffffff; width:fit-content; margin-bottom:12px; font-weight:700;">
+            ${icon("map")} Real-Estate 3D Experience
+          </div>
+          <h2>Tour Tuguegarao Boarding Houses in Full 3D</h2>
+          <p>Tilt, rotate, and explore campus neighborhoods in WebGL. See real building distances to SPUP, USL, CSU Carig, and CSU Andrews before you book an ocular inspection.</p>
+          <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
+            <a href="#/map" class="button primary large" style="background:#ffffff; color:var(--primary); font-weight:800; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.2);">
+              ${icon("navigation")} Open 3D Map Explorer
+            </a>
+            <a href="#/search" class="button outline large" style="color:#ffffff; border-color:rgba(255,255,255,0.4);">
+              Browse Rooms List
+            </a>
+          </div>
+        </div>
+        <div class="map3d-teaser-visual">
+          <div class="map3d-teaser-card card-1">
+            <span class="map3d-pill" style="background:#2855e8; color:#fff;">₱2,500/mo <span class="map3d-dot"></span></span>
+            <div style="font-size:0.75rem; font-weight:700; margin-top:6px;">St. Paul Area Dormitory</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">2 min walk to SPUP · Available</div>
+          </div>
+          <div class="map3d-teaser-card card-2">
+            <span class="map3d-pill">₱3,200/mo <span class="map3d-dot"></span></span>
+            <div style="font-size:0.75rem; font-weight:700; margin-top:6px;">USL Student Studio</div>
+            <div style="font-size:0.65rem; color:var(--text-muted);">Balzain, Tuguegarao · Available</div>
           </div>
         </div>
       </div>
@@ -896,7 +936,7 @@ function listingArea(items) {
     return empty(
       state.error ? "Connection notice" : "No properties found",
       state.error || "No published spaces match your current search filter. Try adjusting your budget or area.",
-      `<a class="button outline" href="#/wanted">Post a Kwarto Wanted Request ${icon("arrow-right")}</a>`,
+      `<a class="button outline" href="#/map">Explore 3D City Map ${icon("arrow-right")}</a>`,
     );
   }
   return `<div class="property-grid">${items.map(card).join("")}</div>`;
@@ -1178,10 +1218,7 @@ async function dashboard() {
             ${icon("search")} Explore Rooms ${icon("arrow-right")}
           </a>
           <a href="#/map" class="button outline">
-            ${icon("map")} Map View
-          </a>
-          <a href="#/wanted" class="button outline">
-            ${icon("message-square-plus")} Kwarto Wanted
+            ${icon("map")} 3D Tuguegarao Map
           </a>
           <a href="#/domi" class="button outline">
             ${icon("sparkles")} Ask DOMI AI
@@ -1192,15 +1229,207 @@ async function dashboard() {
   `;
 }
 
-// Redesigned Search & Map Page
+// Tuguegarao City Coordinates & Fallbacks
+const TUGUEGARAO_CENTER = [121.7270, 17.6132]; // [lng, lat] for MapLibre
+
+const BARANGAY_COORDS = {
+  centro: [121.7282, 17.6135],
+  poblacion: [121.7282, 17.6135],
+  "san gabriel": [121.7180, 17.6180],
+  carig: [121.7580, 17.6530],
+  "carig sur": [121.7550, 17.6480],
+  "carig norte": [121.7610, 17.6580],
+  caggay: [121.7370, 17.6320],
+  balzain: [121.7225, 17.6190],
+  "balzain east": [121.7250, 17.6195],
+  "balzain west": [121.7200, 17.6185],
+  "pengue-ruyu": [121.7390, 17.6170],
+  pengue: [121.7390, 17.6170],
+  ugac: [121.7190, 17.6040],
+  "ugac sur": [121.7180, 17.6010],
+  "ugac norte": [121.7200, 17.6070],
+  buntun: [121.6960, 17.6080],
+  cataggaman: [121.7050, 17.5990],
+  "cataggaman pardo": [121.7040, 17.5970],
+  "cataggaman nuevo": [121.7060, 17.6010],
+  "cataggaman viejo": [121.7080, 17.5950],
+  atulayan: [121.7330, 17.6185],
+  "atulayan sur": [121.7320, 17.6170],
+  "atulayan norte": [121.7340, 17.6200],
+  annafunan: [121.7160, 17.6350],
+  "annafunan east": [121.7180, 17.6360],
+  "annafunan west": [121.7140, 17.6340],
+  linao: [121.7020, 17.6310],
+  "linao east": [121.7040, 17.6320],
+  "linao west": [121.7000, 17.6300],
+  "linao norte": [121.7020, 17.6340],
+  libag: [121.7340, 17.6010],
+  "libag sur": [121.7330, 17.5990],
+  "libag norte": [121.7350, 17.6030],
+  capatan: [121.7450, 17.5920],
+  bagay: [121.6990, 17.6250],
+  larion: [121.7520, 17.6150],
+  "larion alto": [121.7540, 17.6170],
+  "larion bajo": [121.7500, 17.6130],
+  tanza: [121.7240, 17.6110],
+  tagga: [121.7610, 17.6380],
+  pallua: [121.7030, 17.6120],
+  "pallua sur": [121.7020, 17.6100],
+  "pallua norte": [121.7040, 17.6140],
+  namabbalan: [121.7690, 17.5620],
+  usl: [121.7245, 17.6185],
+  spup: [121.7210, 17.6160],
+  csu: [121.7580, 17.6530],
+};
+
+function getPropertyCoordinates(p) {
+  const lat = Number(p.lat);
+  const lng = Number(p.lng);
+  if (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat > 17.4 && lat < 17.8 &&
+    lng > 121.5 && lng < 122.0
+  ) {
+    return [lng, lat]; // MapLibre takes [lng, lat]
+  }
+
+  const locStr = `${p.barangay || ""} ${p.location || ""} ${p.address || ""} ${p.title || ""}`.toLowerCase();
+  for (const [key, coords] of Object.entries(BARANGAY_COORDS)) {
+    if (locStr.includes(key)) {
+      const hash = (p.id || "").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const jitterLng = ((hash % 17) - 8) * 0.0003;
+      const jitterLat = (((hash * 3) % 17) - 8) * 0.0003;
+      return [coords[0] + jitterLng, coords[1] + jitterLat];
+    }
+  }
+
+  const hash = (p.id || "").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const jitterLng = ((hash % 23) - 11) * 0.0006;
+  const jitterLat = (((hash * 7) % 23) - 11) * 0.0006;
+  return [TUGUEGARAO_CENTER[0] + jitterLng, TUGUEGARAO_CENTER[1] + jitterLat];
+}
+
+// Redesigned Search & 3D Map Page
 function searchPage(mapView = false) {
   const items = filterProperties(state.properties, state.filters);
+
+  if (mapView) {
+    return `
+      <div class="map3d-shell">
+        <!-- Left Side: Listings & Quick Filters -->
+        <aside class="map3d-sidebar">
+          <div class="map3d-sidebar-header">
+            <div class="map3d-sidebar-title">
+              <div class="overline">3D EXPLORER · TUGUEGARAO</div>
+              <h2>3D Map Discovery</h2>
+              <p style="font-size:0.75rem; color:var(--text-muted); margin:0;">${items.length} verified propert${items.length === 1 ? "y" : "ies"} in Tuguegarao</p>
+            </div>
+            <a href="#/search" class="button outline small" title="Switch to Grid View">
+              ${icon("layout-grid")} Grid
+            </a>
+          </div>
+
+          <!-- Quick filter chips -->
+          <div class="map3d-filter-chips">
+            <button class="map3d-filter-chip ${!state.filters.type ? "active" : ""}" data-map-filter="">All Types</button>
+            ${TYPES.map((t) => `<button class="map3d-filter-chip ${state.filters.type === t ? "active" : ""}" data-map-filter="${t}">${t}</button>`).join("")}
+            <button class="map3d-filter-chip ${state.filters.vacant ? "active" : ""}" data-map-vacant="toggle">
+              ${state.filters.vacant ? "✓ Vacant Only" : "Vacant Only"}
+            </button>
+          </div>
+
+          <!-- Property cards feed -->
+          <div class="map3d-list">
+            ${
+              items.length
+                ? items
+                    .map(
+                      (p) => `
+                <div class="map3d-card" data-focus-property="${p.id}">
+                  <img src="${p.photos?.[0] || "/logo.png"}" class="map3d-card-thumb" alt="${e(p.title)}" onerror="this.src='/logo.png'">
+                  <div class="map3d-card-content">
+                    <div>
+                      <div class="map3d-card-title">${e(p.title)}</div>
+                      <div class="map3d-card-meta">${icon("map-pin")} ${e(p.barangay || p.location || "Tuguegarao")}</div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                      <span class="map3d-card-price">₱${Number(p.rent || 0).toLocaleString()}<span style="font-size:0.6875rem; font-weight:normal; color:var(--text-muted);">/mo</span></span>
+                      <span class="badge ${p.available > 0 ? "badge-success" : "badge-subtle"}" style="font-size:0.6875rem; padding:2px 6px;">
+                        ${p.available > 0 ? `${p.available} vacant` : "Full"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              `,
+                    )
+                    .join("")
+                : `<div style="padding:32px; text-align:center; color:var(--text-muted);">No properties match your filter in Tuguegarao.</div>`
+            }
+          </div>
+        </aside>
+
+        <!-- Right Side: WebGL 3D Map Viewport -->
+        <main class="map3d-viewport">
+          <div id="map"></div>
+
+          <!-- Polished Floating 3D Controls -->
+          <div class="map3d-controls-overlay">
+            <button class="map3d-ctrl-btn active" id="map3d-tilt-toggle" title="Toggle 3D Perspective / 2D View">
+              3D
+            </button>
+            <button class="map3d-ctrl-btn" id="map3d-compass-btn" title="Reset North & Pitch">
+              ${icon("compass")}
+            </button>
+            <button class="map3d-ctrl-btn" id="map3d-locate-btn" title="Locate Me">
+              ${icon("crosshair")}
+            </button>
+            <button class="map3d-ctrl-btn" id="map3d-center-btn" title="Reset to Tuguegarao Center">
+              ${icon("house")}
+            </button>
+            <button class="map3d-ctrl-btn" id="map3d-zoom-in" title="Zoom In">
+              ${icon("plus")}
+            </button>
+            <button class="map3d-ctrl-btn" id="map3d-zoom-out" title="Zoom Out">
+              ${icon("minus")}
+            </button>
+          </div>
+
+          <!-- Apple Maps Style 3D Interaction Hint -->
+          <div class="map3d-tip-pill">
+            ${icon("sparkles")} Right-click & drag or 2 fingers to pitch & rotate in 3D
+          </div>
+
+          <!-- Mobile slide-up drawer / bottom sheet -->
+          <div class="map3d-bottom-sheet">
+            <div class="map3d-sheet-handle"></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <strong style="font-size:0.875rem;">${items.length} Properties in Tuguegarao</strong>
+              <a href="#/search" class="button outline small" style="padding:4px 8px; font-size:0.75rem;">Grid View</a>
+            </div>
+            <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;">
+              ${items.slice(0, 15).map((p) => `
+                <div class="map3d-card" data-focus-property="${p.id}" style="min-width:250px; grid-template-columns:80px 1fr;">
+                  <img src="${p.photos?.[0] || "/logo.png"}" class="map3d-card-thumb" style="width:80px; height:70px;" alt="${e(p.title)}" onerror="this.src='/logo.png'">
+                  <div class="map3d-card-content">
+                    <div class="map3d-card-title">${e(p.title)}</div>
+                    <div class="map3d-card-price">₱${Number(p.rent || 0).toLocaleString()}</div>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+  }
+
   return `
     <div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
         <div>
           <div class="overline">EXPLORE TUGUEGARAO</div>
-          <h2>${mapView ? "Interactive Map View" : "Available Rooms & Dorms"}</h2>
+          <h2>Available Rooms & Dorms</h2>
           <p>${items.length} verified space${items.length === 1 ? "" : "s"} found</p>
         </div>
         <div style="display:flex; gap:8px;">
@@ -1208,7 +1437,7 @@ function searchPage(mapView = false) {
             ${icon("layout-grid")} List
           </a>
           <a href="#/map" class="button ${mapView ? "primary" : "outline"} small">
-            ${icon("map")} Map
+            ${icon("map")} 3D Map View
           </a>
         </div>
       </div>
@@ -1225,7 +1454,7 @@ function searchPage(mapView = false) {
         <button type="button" class="button text-button small" data-action="reset-filters">Reset</button>
       </form>
 
-      ${mapView ? '<div id="map" style="height:550px; border-radius:var(--radius-xl); border:1px solid var(--border);"></div>' : listingArea(items)}
+      ${listingArea(items)}
       ${state.more ? `<div style="text-align:center; margin-top:32px;"><button class="button outline" data-action="load-more">Load more properties</button></div>` : ""}
     </div>
   `;
@@ -1360,59 +1589,10 @@ async function favoritesPage() {
   `;
 }
 
-// Redesigned Kwarto Wanted Page
+// Kwarto Wanted has been sunset in favor of direct 3D map exploration & verified listings
 async function wantedPage() {
-  const reqs = api.configured ? await api.requests() : [];
-  state.requests = reqs;
-  const isLandlord = api.profile?.role === "landlord";
-
-  return `
-    <div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
-        <div>
-          <div class="overline">${isLandlord ? "TENANT DEMAND FEED" : "KWARTO WANTED"}</div>
-          <h2>${isLandlord ? `Student Room Requests (${reqs.length})` : "Student Room Requests"}</h2>
-          <p>${isLandlord ? "Review what students in Tuguegarao are looking for and submit matching room offers." : "Share what you are looking for so verified landlords can reach out."}</p>
-        </div>
-        ${
-          isLandlord
-            ? `<div class="badge badge-success" style="padding:8px 14px; font-weight:700;">${icon("home")} Landlord Offer Mode</div>`
-            : `<button class="button primary" data-action="new-request">${icon("plus")} Post a Request</button>`
-        }
-      </div>
-
-      <div class="property-grid">
-        ${
-          reqs.length
-            ? reqs
-                .map(
-                  (r) => `
-              <div class="detail-section" style="margin-bottom:0;">
-                <div class="badge badge-outline" style="margin-bottom:10px;">Looking for ${e(r.type)}</div>
-                <h3 style="margin-bottom:6px;">${e(r.location)}</h3>
-                <div style="font-size:1.125rem; font-weight:800; color:var(--primary); margin-bottom:12px;">
-                  Up to ${money(r.budget)} / month
-                </div>
-                <p style="font-size:0.875rem; margin-bottom:8px;">${e(r.notes || "No extra notes specified.")}</p>
-                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:14px;">
-                  By ${e(r.name)} · Move in: ${e(r.moveIn)} · ${r.occupants} occupant(s)
-                </div>
-                ${
-                  r.userId === api.currentUser?.uid
-                    ? `<button class="button outline small" data-close-request="${r.id}" style="color:var(--danger); border-color:var(--danger);">${icon("x")} Close request</button>`
-                    : isLandlord
-                      ? `<button class="button primary small" data-offer="${r.id}">${icon("send")} Offer a room</button>`
-                      : ""
-                }
-              </div>
-            `,
-                )
-                .join("")
-            : `<div style="grid-column:1/-1;">${empty("No active requests yet", "Post what kind of room and budget you need to help local owners find you.")}</div>`
-        }
-      </div>
-    </div>
-  `;
+  location.hash = "/search";
+  return "";
 }
 
 // Redesigned Profile & Account Settings Page
@@ -2371,7 +2551,6 @@ async function route() {
     "search",
     "map",
     "property",
-    "wanted",
     "domi",
     "privacy",
     "terms",
@@ -2424,8 +2603,8 @@ async function route() {
         innerHTML = await favoritesPage();
         break;
       case "wanted":
-        innerHTML = await wantedPage();
-        break;
+        location.hash = "/search";
+        return;
       case "dashboard":
         innerHTML = await dashboard();
         break;
@@ -2553,21 +2732,263 @@ async function route() {
   }
 }
 
-async function mountMap() {
-  const L = await import("leaflet");
-  if (!$("#map")) return;
-  map = L.map("map").setView([17.6132, 121.727], 13);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  }).addTo(map);
+let currentMapPopup = null;
+let activeMarkerEl = null;
 
-  filterProperties(state.properties, state.filters).forEach((p) => {
-    if (Number.isFinite(p.lat) && Number.isFinite(p.lng)) {
-      L.marker([p.lat, p.lng])
-        .addTo(map)
-        .bindPopup(`<a href="#/property/${e(p.id)}"><strong>${e(p.title)}</strong></a><br>${p.available} space(s) available`);
+async function mountMap() {
+  const mapContainer = $("#map");
+  if (!mapContainer) return;
+
+  // Clean up previous MapLibre instance to prevent WebGL context leaks
+  if (state.mapInstance) {
+    try {
+      state.mapInstance.remove();
+    } catch (e) {
+      console.warn("Map disposal error", e);
     }
+    state.mapInstance = null;
+  }
+
+  // Initialize MapLibre GL 3D Map
+  const map = new maplibregl.Map({
+    container: "map",
+    style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+    center: TUGUEGARAO_CENTER,
+    zoom: 14.8,
+    pitch: 55, // 3D tilt
+    bearing: -15, // dynamic 3D angle
+    maxPitch: 75,
+    antialias: true,
+  });
+
+  state.mapInstance = map;
+
+  // Add 3D Extruded Buildings Layer when vector tiles load
+  map.on("load", () => {
+    try {
+      const layers = map.getStyle()?.layers || [];
+      let labelLayerId;
+      for (let i = 0; i < layers.length; i++) {
+        if (layers[i].type === "symbol" && layers[i].layout && layers[i].layout["text-field"]) {
+          labelLayerId = layers[i].id;
+          break;
+        }
+      }
+
+      // Find building source layer in Carto Voyager
+      const buildingLayer = layers.find((l) => l["source-layer"] === "building");
+      if (buildingLayer && !map.getLayer("3d-buildings")) {
+        map.addLayer(
+          {
+            id: "3d-buildings",
+            source: buildingLayer.source,
+            "source-layer": "building",
+            type: "fill-extrusion",
+            minzoom: 14,
+            paint: {
+              "fill-extrusion-color": [
+                "interpolate",
+                ["linear"],
+                ["get", "render_height"],
+                0, "#e2e8f0",
+                20, "#cbd5e1",
+                50, "#94a3b8",
+              ],
+              "fill-extrusion-height": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                14, 0,
+                15.05, ["coalesce", ["get", "render_height"], 12],
+              ],
+              "fill-extrusion-base": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                14, 0,
+                15.05, ["coalesce", ["get", "render_min_height"], 0],
+              ],
+              "fill-extrusion-opacity": 0.8,
+            },
+          },
+          labelLayerId,
+        );
+      }
+    } catch (err) {
+      console.warn("3D buildings layer setup:", err);
+    }
+  });
+
+  // Collect properties filtered by active criteria
+  const items = filterProperties(state.properties, state.filters);
+  const markers = new Map();
+
+  items.forEach((p) => {
+    const coords = getPropertyCoordinates(p);
+    if (!coords) return;
+
+    // Create Apple Maps / Airbnb style price pill element
+    const el = document.createElement("div");
+    el.className = "map3d-marker";
+    el.dataset.propertyId = p.id;
+    el.innerHTML = `
+      <div class="map3d-pill">
+        <span class="map3d-currency">₱</span>${Number(p.rent || 0).toLocaleString()}
+        <span class="map3d-dot" style="background:${p.available > 0 ? "#10b981" : "#94a3b8"};"></span>
+      </div>
+      <div class="map3d-arrow"></div>
+    `;
+
+    const popupHTML = `
+      <div class="map3d-popup-card">
+        <img src="${p.photos?.[0] || "/logo.png"}" class="map3d-popup-thumb" alt="${e(p.title)}" onerror="this.src='/logo.png'">
+        <div class="map3d-popup-body">
+          <span class="badge ${p.available > 0 ? "badge-success" : "badge-subtle"}" style="align-self:flex-start; font-size:0.6875rem;">
+            ${p.available > 0 ? `${p.available} space(s) available` : "Fully occupied"}
+          </span>
+          <div class="map3d-popup-title">${e(p.title)}</div>
+          <div class="map3d-popup-location">${icon("map-pin")} ${e(p.barangay || p.location || "Tuguegarao City")}</div>
+          <div class="map3d-popup-footer">
+            <div>
+              <div style="font-size:0.6875rem; color:var(--text-muted);">Monthly Rent</div>
+              <div class="map3d-popup-price">₱${Number(p.rent || 0).toLocaleString()}<span style="font-size:0.6875rem; font-weight:500; color:var(--text-secondary);">/mo</span></div>
+            </div>
+            <a href="#/property/${p.id}" class="button primary small" style="padding:6px 12px; font-size:0.75rem;">
+              View Details ${icon("arrow-right")}
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const popup = new maplibregl.Popup({
+      offset: 36,
+      closeButton: true,
+      closeOnClick: false,
+      maxWidth: "300px",
+    }).setHTML(popupHTML);
+
+    const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat(coords)
+      .setPopup(popup)
+      .addTo(map);
+
+    markers.set(p.id, { marker, popup, coords, element: el });
+
+    el.addEventListener("click", () => {
+      focusPropertyOnMap(p.id);
+    });
+  });
+
+  function focusPropertyOnMap(id) {
+    const entry = markers.get(id);
+    if (!entry) return;
+
+    if (activeMarkerEl) activeMarkerEl.classList.remove("active");
+    entry.element.classList.add("active");
+    activeMarkerEl = entry.element;
+
+    if (currentMapPopup && currentMapPopup.isOpen()) {
+      currentMapPopup.remove();
+    }
+    entry.popup.addTo(map);
+    currentMapPopup = entry.popup;
+
+    map.flyTo({
+      center: entry.coords,
+      zoom: 16.5,
+      pitch: 60,
+      bearing: map.getBearing(),
+      speed: 1.2,
+      curve: 1.4,
+      essential: true,
+    });
+
+    // Sync left feed card active state & scroll
+    $$(".map3d-card").forEach((card) => {
+      if (card.dataset.focusProperty === id) {
+        card.classList.add("active");
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } else {
+        card.classList.remove("active");
+      }
+    });
+  }
+
+  // Sidebar card clicks
+  $$("[data-focus-property]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const pid = btn.dataset.focusProperty;
+      focusPropertyOnMap(pid);
+    });
+  });
+
+  // Floating map controls
+  $("#map3d-tilt-toggle")?.addEventListener("click", (evt) => {
+    const btn = evt.currentTarget;
+    const currentPitch = map.getPitch();
+    const targetPitch = currentPitch > 25 ? 0 : 58;
+    map.easeTo({ pitch: targetPitch, duration: 800 });
+    btn.classList.toggle("active", targetPitch > 0);
+    btn.innerText = targetPitch > 0 ? "3D" : "2D";
+  });
+
+  $("#map3d-compass-btn")?.addEventListener("click", () => {
+    map.easeTo({ bearing: 0, pitch: 55, duration: 600 });
+  });
+
+  $("#map3d-locate-btn")?.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      toast("Geolocation is not supported by your browser.");
+      return;
+    }
+    toast("Locating your position in Tuguegarao...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        map.flyTo({
+          center: [pos.coords.longitude, pos.coords.latitude],
+          zoom: 16,
+          pitch: 55,
+          speed: 1.2,
+          essential: true,
+        });
+        toast("Centered to your location.");
+      },
+      () => {
+        toast("Unable to retrieve location. Defaulting to Tuguegarao.");
+      },
+      { timeout: 8000 },
+    );
+  });
+
+  $("#map3d-center-btn")?.addEventListener("click", () => {
+    map.flyTo({
+      center: TUGUEGARAO_CENTER,
+      zoom: 14.8,
+      pitch: 55,
+      bearing: -15,
+      speed: 1.1,
+      essential: true,
+    });
+  });
+
+  $("#map3d-zoom-in")?.addEventListener("click", () => map.zoomIn());
+  $("#map3d-zoom-out")?.addEventListener("click", () => map.zoomOut());
+
+  // Quick filter chips inside 3D sidebar
+  $$("[data-map-filter]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const type = chip.dataset.mapFilter;
+      state.filters.type = type;
+      route();
+    });
+  });
+
+  $$("[data-map-vacant]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      state.filters.vacant = !state.filters.vacant;
+      route();
+    });
   });
 }
 
@@ -2575,7 +2996,7 @@ async function mountMap() {
    GLOBAL EVENT DELEGATION
    ============================================================================== */
 document.addEventListener("click", async (event) => {
-  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-close-request], [data-offer], [data-send-offer], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], .domi-chip");
+  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], .domi-chip");
   if (!el) return;
 
   // DOMI prompt chip clicked
@@ -2637,86 +3058,6 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  // Close Student Room Request
-  if (el.dataset.closeRequest) {
-    try {
-      await api.closeRequest(el.dataset.closeRequest);
-      toast("Room request closed.");
-      route();
-    } catch (err) {
-      toast(err.message);
-    }
-    return;
-  }
-
-  // Landlord Room Offer to Student Request
-  if (el.dataset.offer) {
-    const req = state.requests?.find((r) => r.id === el.dataset.offer);
-    if (!req) return;
-    try {
-      const props = await api.ownProperties().catch(() => []);
-      if (!props.length) {
-        modal(`
-          <div style="text-align:center; padding:16px;">
-            <div style="font-size:2.5rem; margin-bottom:12px;">🏠</div>
-            <h3>No Properties Listed Yet</h3>
-            <p style="margin:10px 0 20px; color:var(--text-secondary); font-size:0.875rem;">
-              You need an active property listing before you can send direct room offers to students.
-            </p>
-            <a href="#/add-property" class="button primary" onclick="$('#modal')?.close()">Add a Property</a>
-          </div>
-        `);
-        return;
-      }
-      modal(`
-        <div>
-          <h3>Send Room Offer</h3>
-          <p style="font-size:0.875rem; color:var(--text-secondary); margin-bottom:16px;">
-            Select which property to offer to <strong>${e(req.name)}</strong> (${e(req.location)} · budget up to ${money(req.budget)}):
-          </p>
-          <div style="display:grid; gap:10px;">
-            ${props
-              .map(
-                (p) => `
-              <button class="button outline" data-send-offer="${p.id}:${req.userId}" style="text-align:left; justify-content:flex-start; padding:14px; display:flex; width:100%; gap:12px; align-items:center;">
-                <div style="flex:1;">
-                  <strong style="color:var(--text-primary); font-size:0.9375rem;">${e(p.title)}</strong>
-                  <div style="font-size:0.75rem; color:var(--text-muted); margin-top:3px;">
-                    ${e(p.barangay)} · Rent from ₱${p.minPrice.toLocaleString()}/mo · ${p.available} vacancies available
-                  </div>
-                </div>
-                <span class="button primary small" style="pointer-events:none;">Send Offer</span>
-              </button>
-            `,
-              )
-              .join("")}
-          </div>
-        </div>
-      `);
-    } catch (err) {
-      toast(err.message);
-    }
-    return;
-  }
-
-  // Send Offer via Direct Messenger
-  if (el.dataset.sendOffer) {
-    const [propId, studentId] = el.dataset.sendOffer.split(":");
-    try {
-      const prop = await api.getProperty(propId);
-      const convId = await api.startConversation(prop, studentId);
-      await api.sendMessage(
-        convId,
-        `Hello! I saw your room request on Kwarto Wanted. I have vacancies available at ${prop.title} (${prop.barangay}) matching your budget and preferences. Feel free to ask any questions or schedule a viewing!`,
-      );
-      $("#modal")?.close();
-      toast("Room offer sent via Messenger!");
-      location.hash = `/messages/${convId}`;
-    } catch (err) {
-      toast(err.message);
-    }
-    return;
-  }
 
   // Property Pause / Archive
   if (el.dataset.status) {
@@ -3004,32 +3345,6 @@ document.addEventListener("click", async (event) => {
     case "retry":
       route();
       break;
-    case "new-request":
-      modal(`
-        <form id="request-form">
-          <h2>Post a Room Request</h2>
-          <label>Preferred area / barangay
-            <input name="location" required placeholder="e.g. Near USL or Centro">
-          </label>
-          <label>Monthly budget (₱)
-            <input name="budget" type="number" required placeholder="3000">
-          </label>
-          <label>Space type
-            <select name="type">${TYPES.map((t) => `<option>${t}</option>`).join("")}</select>
-          </label>
-          <label>Move-in date
-            <input name="moveIn" type="date" required value="${new Date().toISOString().split("T")[0]}">
-          </label>
-          <label>Number of occupants
-            <input name="occupants" type="number" min="1" max="10" value="1" required>
-          </label>
-          <label>Additional details
-            <textarea name="notes" placeholder="Quiet study area, prefer female-only..."></textarea>
-          </label>
-          <button class="button primary full" style="margin-top:12px;">Publish Request</button>
-        </form>
-      `);
-      break;
     case "reset-password":
       modal(`
         <form id="reset-form">
@@ -3138,16 +3453,6 @@ document.addEventListener("submit", async (event) => {
       case "message-form":
         await api.sendMessage(state.chat.id, values.text);
         form.reset();
-        break;
-      case "request-form":
-        await api.createRequest({
-          ...values,
-          budget: Number(values.budget),
-          occupants: Number(values.occupants),
-        });
-        $("#modal")?.close();
-        toast("Room request published.");
-        route();
         break;
       case "property-form": {
         const files = data.getAll("photos").filter((f) => f.size);

@@ -98,7 +98,7 @@ export function domiReply(text, properties) {
     (p) => p.available > 0 && (!budget || p.minPrice <= budget),
   );
   if (!properties.length)
-    return "There aren’t any loaded listings for me to match yet. Try Explore rooms when listings are available, or post a Kwarto Wanted request. I can also help you understand deposits or draft a message to an owner.";
+    return "There aren’t any loaded listings for me to match yet. Try exploring the 3D Map or browsing rooms when listings are available. I can also help you understand deposits or draft a message to an owner.";
   return matches.length
     ? `From the listings loaded, ${matches.length} ${matches.length === 1 ? "property matches" : "properties match"}${budget ? ` your ${money(budget)} budget` : ""}: ${matches
         .slice(0, 3)
@@ -106,5 +106,5 @@ export function domiReply(text, properties) {
         .join(
           "; ",
         )}. Vacancy is owner-reported; confirm directly before visiting.`
-    : "No loaded listings match that budget with reported vacancies. Try a wider budget or post a Kwarto Wanted request.";
+    : "No loaded listings match that budget with reported vacancies. Try adjusting your budget or explore the 3D Map.";
 }
