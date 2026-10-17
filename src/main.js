@@ -1218,18 +1218,21 @@ async function favoritesPage() {
 async function wantedPage() {
   const reqs = api.configured ? await api.requests() : [];
   state.requests = reqs;
+  const isLandlord = api.profile?.role === "landlord";
 
   return `
     <div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
         <div>
-          <div class="overline">KWARTO WANTED</div>
-          <h2>Student Room Requests</h2>
-          <p>Share what you are looking for so verified landlords can reach out.</p>
+          <div class="overline">${isLandlord ? "TENANT DEMAND FEED" : "KWARTO WANTED"}</div>
+          <h2>${isLandlord ? `Student Room Requests (${reqs.length})` : "Student Room Requests"}</h2>
+          <p>${isLandlord ? "Review what students in Tuguegarao are looking for and submit matching room offers." : "Share what you are looking for so verified landlords can reach out."}</p>
         </div>
-        <button class="button primary" data-action="new-request">
-          ${icon("plus")} Post a Request
-        </button>
+        ${
+          isLandlord
+            ? `<div class="badge badge-success" style="padding:8px 14px; font-weight:700;">${icon("home")} Landlord Offer Mode</div>`
+            : `<button class="button primary" data-action="new-request">${icon("plus")} Post a Request</button>`
+        }
       </div>
 
       <div class="property-grid">
@@ -1250,9 +1253,9 @@ async function wantedPage() {
                 </div>
                 ${
                   r.userId === api.currentUser?.uid
-                    ? `<button class="button outline small" data-close-request="${r.id}">Close request</button>`
-                    : api.profile?.role === "landlord"
-                      ? `<button class="button primary small" data-offer="${r.id}">Offer a room</button>`
+                    ? `<button class="button outline small" data-close-request="${r.id}" style="color:var(--danger); border-color:var(--danger);">${icon("x")} Close request</button>`
+                    : isLandlord
+                      ? `<button class="button primary small" data-offer="${r.id}">${icon("send")} Offer a room</button>`
                       : ""
                 }
               </div>
@@ -1316,10 +1319,40 @@ async function propertiesPage() {
     return empty("Landlord area", "Register as a property owner to list and manage boarding houses.");
   }
   if (!api.profile.verified) {
-    return empty(
-      "Owner verification in progress",
-      "An administrator will verify your ownership evidence before your listings become active.",
-    );
+    return `
+      <div style="max-width:680px; margin:40px auto;">
+        <div class="detail-section" style="padding:40px 32px; text-align:center;">
+          <div style="width:64px; height:64px; border-radius:50%; background:rgba(37,99,235,0.1); color:var(--primary); display:grid; place-items:center; margin:0 auto 16px; font-size:1.75rem;">
+            ${icon("shield-alert")}
+          </div>
+          <span class="badge badge-warning" style="margin-bottom:12px;">Verification in Progress</span>
+          <h2 style="margin-bottom:10px;">Owner Verification Required</h2>
+          <p style="color:var(--text-secondary); line-height:1.6; margin-bottom:24px;">
+            To protect students from fraudulent listings and fake deposit scams in Tuguegarao City, property owner accounts must be verified by a platform administrator before listings become publicly active.
+          </p>
+
+          <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:16px 20px; text-align:left; margin-bottom:20px; font-size:0.875rem;">
+            <div style="font-weight:700; margin-bottom:6px; color:var(--text-primary);">Account Under Review</div>
+            <div><strong>Owner:</strong> ${e(api.profile.name || "Landlord")}</div>
+            <div><strong>Email:</strong> ${e(api.currentUser?.email)}</div>
+            <div><strong>Status:</strong> Pending Administrator Approval</div>
+          </div>
+
+          <div style="background:rgba(37,99,235,0.06); border:1px solid rgba(37,99,235,0.18); border-radius:var(--radius-md); padding:16px 20px; text-align:left; margin-bottom:24px; font-size:0.8125rem;">
+            <strong style="color:var(--primary);">💡 Platform Setup & Local Testing:</strong>
+            <p style="margin:6px 0 0; color:var(--text-secondary);">
+              If you are the platform administrator/developer running DormPath, you can grant yourself administrator rights and verify this account immediately by running this command in your PowerShell terminal:
+            </p>
+            <code style="display:block; margin-top:8px; padding:8px 12px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:6px; font-weight:700; color:var(--primary); word-break:break-all;">npm run make-admin ${e(api.currentUser?.email || "your-email@gmail.com")}</code>
+          </div>
+
+          <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+            <button class="button primary" onclick="location.reload()">${icon("rotate-cw")} Refresh Status</button>
+            <a href="#/dashboard" class="button outline">Back to Dashboard</a>
+          </div>
+        </div>
+      </div>
+    `;
   }
   const properties = await api.ownProperties();
   return `
@@ -2012,6 +2045,31 @@ async function route() {
         (items) => renderMessages(items),
         (err) => toast(err.message),
       );
+      api
+        .viewings(id)
+        .then((vList) => {
+          const vBox = $("#viewings");
+          if (vBox && vList?.length) {
+            vBox.innerHTML = vList
+              .map(
+                (v) => `
+              <div style="background:var(--bg-subtle); border:1px solid var(--border-light); padding:10px 16px; border-radius:var(--radius-sm); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div>
+                  <span class="badge ${v.status === "confirmed" ? "badge-success" : "badge-warning"}">${e(v.status)}</span>
+                  <span style="font-size:0.875rem; margin-left:8px;">Ocular Inspection: <strong>${e(v.date)}</strong></span>
+                </div>
+                ${
+                  v.status === "requested" && v.ownerId === api.currentUser?.uid
+                    ? `<button class="button primary small" data-confirm-viewing="${v.id}">Accept & Confirm</button>`
+                    : ""
+                }
+              </div>
+            `,
+              )
+              .join("");
+          }
+        })
+        .catch(() => {});
       unsubscribe = () => stopMessages();
     }
   } catch (err) {
@@ -2049,7 +2107,7 @@ async function mountMap() {
    GLOBAL EVENT DELEGATION
    ============================================================================== */
 document.addEventListener("click", async (event) => {
-  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], .domi-chip");
+  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-close-request], [data-offer], [data-send-offer], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], .domi-chip");
   if (!el) return;
 
   // DOMI prompt chip clicked
@@ -2104,6 +2162,209 @@ document.addEventListener("click", async (event) => {
         state.favorites.push({ propertyId: id });
         toast("Saved to your shortlist!");
       }
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Close Student Room Request
+  if (el.dataset.closeRequest) {
+    try {
+      await api.closeRequest(el.dataset.closeRequest);
+      toast("Room request closed.");
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Landlord Room Offer to Student Request
+  if (el.dataset.offer) {
+    const req = state.requests?.find((r) => r.id === el.dataset.offer);
+    if (!req) return;
+    try {
+      const props = await api.ownProperties().catch(() => []);
+      if (!props.length) {
+        modal(`
+          <div style="text-align:center; padding:16px;">
+            <div style="font-size:2.5rem; margin-bottom:12px;">🏠</div>
+            <h3>No Properties Listed Yet</h3>
+            <p style="margin:10px 0 20px; color:var(--text-secondary); font-size:0.875rem;">
+              You need an active property listing before you can send direct room offers to students.
+            </p>
+            <a href="#/add-property" class="button primary" onclick="$('#modal')?.close()">Add a Property</a>
+          </div>
+        `);
+        return;
+      }
+      modal(`
+        <div>
+          <h3>Send Room Offer</h3>
+          <p style="font-size:0.875rem; color:var(--text-secondary); margin-bottom:16px;">
+            Select which property to offer to <strong>${e(req.name)}</strong> (${e(req.location)} · budget up to ${money(req.budget)}):
+          </p>
+          <div style="display:grid; gap:10px;">
+            ${props
+              .map(
+                (p) => `
+              <button class="button outline" data-send-offer="${p.id}:${req.userId}" style="text-align:left; justify-content:flex-start; padding:14px; display:flex; width:100%; gap:12px; align-items:center;">
+                <div style="flex:1;">
+                  <strong style="color:var(--text-primary); font-size:0.9375rem;">${e(p.title)}</strong>
+                  <div style="font-size:0.75rem; color:var(--text-muted); margin-top:3px;">
+                    ${e(p.barangay)} · Rent from ₱${p.minPrice.toLocaleString()}/mo · ${p.available} vacancies available
+                  </div>
+                </div>
+                <span class="button primary small" style="pointer-events:none;">Send Offer</span>
+              </button>
+            `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `);
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Send Offer via Direct Messenger
+  if (el.dataset.sendOffer) {
+    const [propId, studentId] = el.dataset.sendOffer.split(":");
+    try {
+      const prop = await api.getProperty(propId);
+      const convId = await api.startConversation(prop, studentId);
+      await api.sendMessage(
+        convId,
+        `Hello! I saw your room request on Kwarto Wanted. I have vacancies available at ${prop.title} (${prop.barangay}) matching your budget and preferences. Feel free to ask any questions or schedule a viewing!`,
+      );
+      $("#modal")?.close();
+      toast("Room offer sent via Messenger!");
+      location.hash = `/messages/${convId}`;
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Property Pause / Archive
+  if (el.dataset.status) {
+    const [id, nextStatus] = el.dataset.status.split(":");
+    try {
+      await api.propertyStatus(id, nextStatus);
+      toast(`Property status set to ${nextStatus}.`);
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Delete Archived Property
+  if (el.dataset.deleteProperty) {
+    if (confirm("Are you sure you want to permanently delete this archived property?")) {
+      try {
+        await api.deleteProperty(el.dataset.deleteProperty);
+        toast("Property deleted.");
+        route();
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+    return;
+  }
+
+  // Room Dialog Trigger
+  if (el.dataset.room) {
+    const r = state.rooms?.find((item) => item.id === el.dataset.room);
+    if (r) roomDialog(r);
+    return;
+  }
+
+  // Quick Vacancy +/-
+  if (el.dataset.occupy) {
+    try {
+      await api.adjustVacancy(state.roomProperty, el.dataset.occupy, -1);
+      toast("Occupancy updated (-1 vacancy).");
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+  if (el.dataset.vacate) {
+    try {
+      await api.adjustVacancy(state.roomProperty, el.dataset.vacate, 1);
+      toast("Vacancy increased (+1 vacancy).");
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Admin Verification
+  if (el.dataset.verify) {
+    try {
+      await api.moderate("users", el.dataset.verify, { verified: true });
+      toast("Owner verified successfully!");
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Admin Suspension
+  if (el.dataset.suspend) {
+    const [id, dis] = el.dataset.suspend.split(":");
+    try {
+      await api.moderate("users", id, { disabled: dis === "true" });
+      toast(dis === "true" ? "User suspended." : "User restored.");
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Admin Listing Moderation
+  if (el.dataset.moderate) {
+    const [coll, id, st] = el.dataset.moderate.split(":");
+    try {
+      await api.moderate(coll, id, { status: st });
+      toast(`Item updated to ${st}.`);
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Report Listing
+  if (el.dataset.report) {
+    const propId = el.dataset.report;
+    modal(`
+      <form id="report-form" data-property="${e(propId)}">
+        <h3>Report Listing</h3>
+        <p style="font-size:0.875rem; margin-bottom:12px; color:var(--text-secondary);">Help keep DormPath safe. Please specify the issue with this listing.</p>
+        <label>Reason
+          <textarea name="reason" required placeholder="e.g. Inaccurate photos, false pricing, suspicious deposit request..." style="min-height:100px;"></textarea>
+        </label>
+        <button class="button primary full" style="margin-top:12px;">Submit Report</button>
+      </form>
+    `);
+    return;
+  }
+
+  // Confirm Viewing
+  if (el.dataset.confirmViewing) {
+    try {
+      await api.confirmViewing(el.dataset.confirmViewing);
+      toast("Viewing confirmed!");
       route();
     } catch (err) {
       toast(err.message);
@@ -2176,6 +2437,51 @@ document.addEventListener("click", async (event) => {
       break;
     case "load-more":
       await loadListings(true);
+      route();
+      break;
+    case "add-room":
+      roomDialog();
+      break;
+    case "viewing":
+      modal(`
+        <form id="viewing-form">
+          <h3>Request an In-Person Viewing</h3>
+          <p style="font-size:0.875rem; margin-bottom:14px; color:var(--text-secondary);">
+            Coordinate an ocular inspection with the landlord. Please suggest a date and preferred time.
+          </p>
+          <label>Proposed Date & Time
+            <input name="date" type="text" required placeholder="e.g. Saturday Oct 24 at 2:00 PM">
+          </label>
+          <button class="button primary full" style="margin-top:16px;">Send Viewing Request</button>
+        </form>
+      `);
+      break;
+    case "block": {
+      if (!state.chat) break;
+      const otherId = state.chat.participants.find((p) => p !== api.currentUser?.uid);
+      if (otherId && confirm("Block this user? They will not be able to message you or request viewings.")) {
+        try {
+          await api.blockUser(otherId);
+          toast("User blocked.");
+          location.hash = "/messages";
+        } catch (err) {
+          toast(err.message);
+        }
+      }
+      break;
+    }
+    case "clear-private":
+      if (confirm("Clear local cached offline data?")) {
+        try {
+          indexedDB.deleteDatabase("dormpath");
+          toast("Offline cache cleared.");
+          location.reload();
+        } catch (e) {
+          toast("Cache cleared.");
+        }
+      }
+      break;
+    case "retry":
       route();
       break;
     case "new-request":
@@ -2346,6 +2652,17 @@ document.addEventListener("submit", async (event) => {
         );
         $("#modal")?.close();
         toast("Room saved.");
+        route();
+        break;
+      case "report-form":
+        await api.report(form.dataset.property, values.reason.trim());
+        $("#modal")?.close();
+        toast("Thank you. Report submitted for administrator review.");
+        break;
+      case "viewing-form":
+        await api.viewing(state.chat.id, values.date.trim());
+        $("#modal")?.close();
+        toast("Viewing request sent!");
         route();
         break;
     }
