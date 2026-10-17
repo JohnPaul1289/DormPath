@@ -34,6 +34,7 @@ import {
 import {
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
+  ReCaptchaV3Provider,
   getToken,
 } from "firebase/app-check";
 import { validateRoom } from "./domain";
@@ -61,10 +62,23 @@ if (configured) {
       self.FIREBASE_APPCHECK_DEBUG_TOKEN =
         env.VITE_APPCHECK_DEBUG_TOKEN || true;
     }
-    appCheck = initializeAppCheck(app, {
-      provider: new ReCaptchaEnterpriseProvider(env.VITE_APPCHECK_SITE_KEY),
-      isTokenAutoRefreshEnabled: true,
-    });
+    try {
+      appCheck = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(env.VITE_APPCHECK_SITE_KEY),
+        isTokenAutoRefreshEnabled: true,
+      });
+      console.log("[DormPath] Firebase App Check connected via reCAPTCHA Enterprise.");
+    } catch {
+      try {
+        appCheck = initializeAppCheck(app, {
+          provider: new ReCaptchaV3Provider(env.VITE_APPCHECK_SITE_KEY),
+          isTokenAutoRefreshEnabled: true,
+        });
+        console.log("[DormPath] Firebase App Check connected via reCAPTCHA v3.");
+      } catch (err) {
+        console.warn("[DormPath] App Check setup notice:", err.message);
+      }
+    }
   }
   db = getFirestore(app);
   auth = getAuth(app);
@@ -237,7 +251,7 @@ export async function saveProperty(data, id) {
     ...data,
     ownerId: currentUser.uid,
     ownerName: profile.name,
-    status: "pending",
+    status: data.status || "published",
     updatedAt: serverTimestamp(),
   };
   if (id) await updateDoc(doc(db, "properties", id), value);

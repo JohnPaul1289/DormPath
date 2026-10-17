@@ -742,10 +742,22 @@ label.check input[type="checkbox"] {
 }
 
 .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--text-secondary);
   transition: color var(--duration-fast);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.nav-link svg, .nav-link i {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-block;
 }
 
 .nav-link:hover, .nav-link.active {

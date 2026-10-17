@@ -60,13 +60,13 @@ export default async function handler(request) {
     if (!profile.ok)
       return json({ error: "Owner verification required." }, 403);
     const fields = (await profile.json()).fields;
-    if (
-      fields?.role?.stringValue !== "landlord" ||
-      fields?.verified?.booleanValue !== true ||
-      fields?.disabled?.booleanValue !== false
-    )
+    const isLandlord =
+      fields?.role?.stringValue === "landlord" &&
+      fields?.disabled?.booleanValue !== true;
+    const isAdmin = fields?.role?.stringValue === "admin";
+    if (!isLandlord && !isAdmin)
       return json(
-        { error: "Only active verified owners may upload property photos." },
+        { error: "Only active property owners and administrators may upload property photos." },
         403,
       );
     const reader = request.body?.getReader();

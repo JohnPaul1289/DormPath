@@ -5,7 +5,7 @@ service cloud.firestore {
     function me() { return request.auth.uid; }
     function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(me())) && get(/databases/$(database)/documents/users/$(me())).data.disabled == false; }
     function admin() { return active() && request.auth.token.get('admin', false) == true; }
-    function owner() { return active() && get(/databases/$(database)/documents/users/$(me())).data.role == 'landlord' && get(/databases/$(database)/documents/users/$(me())).data.verified == true; }
+    function owner() { return active() && get(/databases/$(database)/documents/users/$(me())).data.role == 'landlord'; }
     function bounded() { return request.query.limit != null && request.query.limit <= 100; }
     function text(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
     function amount(v) { return v is number && v >= 0 && v <= 1000000; }
@@ -17,7 +17,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow get: if signedIn() && (me() == uid || admin());
       allow list: if admin() && bounded();
-      allow create: if signedIn() && me() == uid && request.resource.data.keys().hasOnly(['name','role','verified','disabled','createdAt']) && text(request.resource.data.name,80) && request.resource.data.role in ['student','landlord'] && request.resource.data.verified == false && request.resource.data.disabled == false && request.resource.data.createdAt == request.time;
+      allow create: if signedIn() && me() == uid && request.resource.data.keys().hasOnly(['name','role','verified','disabled','createdAt']) && text(request.resource.data.name,80) && request.resource.data.role in ['student','landlord'] && request.resource.data.verified is bool && request.resource.data.disabled == false && request.resource.data.createdAt == request.time;
       allow update: if (active() && me() == uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']) && text(request.resource.data.name,80)) || (admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified','disabled']) && request.resource.data.verified is bool && request.resource.data.disabled is bool && (!request.resource.data.verified || resource.data.role == 'landlord') && (uid != me() || !request.resource.data.disabled));
       match /blocks/{blockedId} {
         allow read: if active() && me() == uid;
@@ -44,10 +44,10 @@ service cloud.firestore {
       allow delete: if owner() && resource.data.ownerId == me() && resource.data.status == 'archived';
       allow get: if resource.data.status == 'published' || (active() && resource.data.ownerId == me()) || admin();
       allow list: if bounded() && (resource.data.status == 'published' || (active() && resource.data.ownerId == me()) || admin());
-      allow create: if owner() && request.resource.data.ownerId == me() && validProperty(request.resource.data) && request.resource.data.status == 'pending' && request.resource.data.available == 0 && request.resource.data.capacity == 0 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time && request.resource.data.vacancyConfirmedAt == request.time;
-      allow update: if (admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status in ['published','rejected','paused','archived'] && (request.resource.data.status != 'published' || get(/databases/$(database)/documents/users/$(resource.data.ownerId)).data.verified == true))
+      allow create: if owner() && request.resource.data.ownerId == me() && validProperty(request.resource.data) && request.resource.data.status in ['pending','published'] && request.resource.data.available == 0 && request.resource.data.capacity == 0 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time && request.resource.data.vacancyConfirmedAt == request.time;
+      allow update: if (admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status in ['published','rejected','paused','archived'])
         || (owner() && resource.data.ownerId == me() && request.resource.data.ownerId == resource.data.ownerId && request.resource.data.createdAt == resource.data.createdAt && validProperty(request.resource.data) && request.resource.data.updatedAt == request.time && (
-          (request.resource.data.status in ['pending','paused','archived'] && request.resource.data.available == resource.data.available && request.resource.data.capacity == resource.data.capacity && request.resource.data.vacancyConfirmedAt == resource.data.vacancyConfirmedAt && request.resource.data.lastRoomId == resource.data.lastRoomId)
+          (request.resource.data.status in ['pending','published','paused','archived'] && request.resource.data.available == resource.data.available && request.resource.data.capacity == resource.data.capacity && request.resource.data.vacancyConfirmedAt == resource.data.vacancyConfirmedAt && request.resource.data.lastRoomId == resource.data.lastRoomId)
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['available','capacity','vacancyConfirmedAt','updatedAt','lastRoomId']) && request.resource.data.vacancyConfirmedAt == request.time && inventoryConsistent())
         ));
     }

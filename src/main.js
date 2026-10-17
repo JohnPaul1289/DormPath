@@ -348,29 +348,58 @@ function appLayout(content) {
           </a>
         </div>
 
-        <div class="sidebar-nav-group">
-          <div class="sidebar-caption">DISCOVER</div>
-          ${navItem("search", "Explore Rooms", "search")}
-          ${navItem("map", "Map View", "map")}
-          ${navItem("wanted", "Kwarto Wanted", "message-square-plus")}
-          ${navItem("domi", "Ask DOMI AI", "sparkles")}
-        </div>
+        ${
+          api.profile?.role === "landlord"
+            ? `
+          <div class="sidebar-nav-group">
+            <div class="sidebar-caption">LANDLORD PORTAL</div>
+            ${navItem("dashboard", "Dashboard", "layout-dashboard")}
+            ${navItem("properties", "My Properties", "building-2")}
+            ${navItem("add-property", "Add Property", "plus-circle")}
+            ${navItem("wanted", "Tenant Demand", "users")}
+            <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
+              <div class="sidebar-link-left">
+                ${icon("messages-square")}
+                <span>Student Inquiries</span>
+              </div>
+              ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
+            </a>
+            ${navItem("notifications", "Inquiry Alerts", "bell")}
+            ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
+          </div>
 
-        <div class="sidebar-nav-group">
-          <div class="sidebar-caption">WORKSPACE</div>
-          ${navItem("dashboard", "Dashboard", "layout-dashboard")}
-          ${navItem("favorites", "Saved Places", "heart")}
-          <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
-            <div class="sidebar-link-left">
-              ${icon("messages-square")}
-              <span>Messages</span>
-            </div>
-            ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
-          </a>
-          ${navItem("notifications", "Notifications", "bell")}
-          ${api.profile?.role === "landlord" ? navItem("properties", "My Properties", "building-2") : ""}
-          ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
-        </div>
+          <div class="sidebar-nav-group">
+            <div class="sidebar-caption">DISCOVER & MARKET</div>
+            ${navItem("search", "Market Listings", "search")}
+            ${navItem("map", "Tuguegarao Map", "map")}
+            ${navItem("domi", "Ask DOMI AI", "sparkles")}
+          </div>
+        `
+            : `
+          <div class="sidebar-nav-group">
+            <div class="sidebar-caption">FIND HOUSING</div>
+            ${navItem("search", "Explore Rooms", "search")}
+            ${navItem("map", "Map View", "map")}
+            ${navItem("wanted", "Kwarto Wanted", "message-square-plus")}
+            ${navItem("domi", "Ask DOMI AI", "sparkles")}
+          </div>
+
+          <div class="sidebar-nav-group">
+            <div class="sidebar-caption">STUDENT WORKSPACE</div>
+            ${navItem("dashboard", "Dashboard", "layout-dashboard")}
+            ${navItem("favorites", "Saved Places", "heart")}
+            <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
+              <div class="sidebar-link-left">
+                ${icon("messages-square")}
+                <span>Inquiries & Chat</span>
+              </div>
+              ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
+            </a>
+            ${navItem("notifications", "Notifications", "bell")}
+            ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
+          </div>
+        `
+        }
 
         <div class="sidebar-bottom">
           <div class="sidebar-profile-pill">
@@ -407,7 +436,7 @@ function appLayout(content) {
               ${icon("sparkles")} Ask DOMI
             </a>
             ${
-              api.profile?.role === "landlord" && api.profile?.verified
+              api.profile?.role === "landlord"
                 ? `<a href="#/add-property" class="button primary small">${icon("plus")} Add Property</a>`
                 : ""
             }
@@ -993,52 +1022,152 @@ async function details(id) {
 // Redesigned Dashboard Page
 async function dashboard() {
   const isOwner = api.profile?.role === "landlord";
-  const data = isOwner ? await api.ownProperties() : await api.favorites();
   const convs = await api.conversations();
 
+  if (isOwner) {
+    const props = await api.ownProperties();
+    const totalAvailable = props.reduce((n, p) => n + (p.available || 0), 0);
+    const totalCapacity = props.reduce((n, p) => n + (p.capacity || 0), 0);
+
+    return `
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:16px;">
+          <div>
+            <div class="overline">LANDLORD COMMAND CENTER</div>
+            <h2>Welcome back, ${e(api.profile?.name || "Landlord")} 👋</h2>
+            <p>Manage your boarding houses, live vacancies, and direct student inquiries.</p>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <a href="#/add-property" class="button primary">
+              ${icon("plus")} Add Property
+            </a>
+          </div>
+        </div>
+
+        <div class="trust-metrics-grid" style="margin-bottom:32px;">
+          <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
+            <div class="metric-icon-box">${icon("building-2")}</div>
+            <div>
+              <strong>${props.length}</strong>
+              <span>Active Properties</span>
+            </div>
+          </div>
+          <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
+            <div class="metric-icon-box" style="background:rgba(16,185,129,0.1); color:var(--success);">${icon("bed-double")}</div>
+            <div>
+              <strong>${totalAvailable}</strong>
+              <span>Live Available Beds</span>
+            </div>
+          </div>
+          <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
+            <div class="metric-icon-box">${icon("users")}</div>
+            <div>
+              <strong>${totalCapacity}</strong>
+              <span>Total Capacity</span>
+            </div>
+          </div>
+          <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
+            <div class="metric-icon-box" style="background:rgba(37,99,235,0.1); color:var(--primary);">${icon("messages-square")}</div>
+            <div>
+              <strong>${convs.length}</strong>
+              <span>Student Inquiries</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+            <h3 style="margin-bottom:0;">Your Listed Boarding Houses (${props.length})</h3>
+            <a href="#/properties" class="button outline small">Manage All ${icon("arrow-right")}</a>
+          </div>
+          ${
+            props.length
+              ? `
+            <div style="display:grid; gap:12px;">
+              ${props
+                .map(
+                  (p) => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:14px; background:var(--bg-subtle); border-radius:var(--radius-md); flex-wrap:wrap; gap:12px;">
+                  <div>
+                    <strong style="font-size:1rem; display:block;">${e(p.title)}</strong>
+                    <div style="font-size:0.8125rem; color:var(--text-muted); margin-top:3px;">
+                      ${e(p.barangay)} · Rent from ₱${p.minPrice.toLocaleString()}/mo · <strong>${p.available} vacancies</strong> (${p.capacity} total)
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:8px;">
+                    <a href="#/rooms/${p.id}" class="button outline small">${icon("sliders-horizontal")} Rooms & Vacancies</a>
+                    <a href="#/edit-property/${p.id}" class="button text-button small">${icon("edit-3")} Edit</a>
+                  </div>
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+          `
+              : `
+            <div style="text-align:center; padding:32px 16px;">
+              <div style="font-size:2.5rem; margin-bottom:12px;">🏠</div>
+              <h4>No Properties Listed Yet</h4>
+              <p style="color:var(--text-secondary); max-width:440px; margin:8px auto 20px; font-size:0.875rem;">
+                Get your boarding house or apartment in front of hundreds of students in Tuguegarao City.
+              </p>
+              <a href="#/add-property" class="button primary">${icon("plus")} Add Your First Property</a>
+            </div>
+          `
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  // Student Dashboard
+  const favs = await api.favorites();
   return `
     <div>
       <div style="margin-bottom:28px;">
-        <div class="overline">YOUR DORMPATH WORKSPACE</div>
-        <h2>Welcome back, ${e(api.profile?.name || "neighbor")} 👋</h2>
-        <p>Manage your saved places, inquiries, and housing preferences.</p>
+        <div class="overline">STUDENT HOUSING WORKSPACE</div>
+        <h2>Welcome back, ${e(api.profile?.name || "Student")} 👋</h2>
+        <p>Track your saved boarding houses, landlord inquiries, and room requests.</p>
       </div>
 
       <div class="trust-metrics-grid" style="margin-bottom:32px;">
         <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
-          <div class="metric-icon-box">${icon(isOwner ? "building-2" : "heart")}</div>
+          <div class="metric-icon-box" style="background:rgba(239,68,68,0.1); color:var(--danger);">${icon("heart")}</div>
           <div>
-            <strong>${data.length}</strong>
-            <span>${isOwner ? "Properties Managed" : "Saved Places"}</span>
+            <strong>${favs.length}</strong>
+            <span>Saved Places</span>
           </div>
         </div>
         <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
-          <div class="metric-icon-box">${icon("messages-square")}</div>
+          <div class="metric-icon-box" style="background:rgba(37,99,235,0.1); color:var(--primary);">${icon("messages-square")}</div>
           <div>
             <strong>${convs.length}</strong>
-            <span>Conversations</span>
+            <span>Landlord Conversations</span>
           </div>
         </div>
         <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
-          <div class="metric-icon-box">${icon(isOwner ? "clock" : "wallet")}</div>
+          <div class="metric-icon-box" style="background:rgba(16,185,129,0.1); color:var(--success);">${icon("shield-check")}</div>
           <div>
-            <strong>${isOwner ? data.reduce((n, p) => n + p.available, 0) : "₱0"}</strong>
-            <span>${isOwner ? "Available Spaces" : "Student Platform Fees"}</span>
+            <strong>₱0</strong>
+            <span>Student Platform Fees</span>
           </div>
         </div>
       </div>
 
       <div class="detail-section">
-        <h3>Quick Navigation</h3>
+        <h3>Quick Shortcuts</h3>
         <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:14px;">
-          <a href="#/${isOwner ? "properties" : "search"}" class="button primary">
-            ${isOwner ? "Manage Properties" : "Explore Rooms"} ${icon("arrow-right")}
+          <a href="#/search" class="button primary">
+            ${icon("search")} Explore Rooms ${icon("arrow-right")}
           </a>
-          <a href="#/messages" class="button outline">
-            ${icon("messages-square")} View Messages
+          <a href="#/map" class="button outline">
+            ${icon("map")} Map View
           </a>
           <a href="#/wanted" class="button outline">
             ${icon("message-square-plus")} Kwarto Wanted
+          </a>
+          <a href="#/domi" class="button outline">
+            ${icon("sparkles")} Ask DOMI AI
           </a>
         </div>
       </div>
@@ -1317,42 +1446,6 @@ async function profilePage() {
 async function propertiesPage() {
   if (api.profile?.role !== "landlord") {
     return empty("Landlord area", "Register as a property owner to list and manage boarding houses.");
-  }
-  if (!api.profile.verified) {
-    return `
-      <div style="max-width:680px; margin:40px auto;">
-        <div class="detail-section" style="padding:40px 32px; text-align:center;">
-          <div style="width:64px; height:64px; border-radius:50%; background:rgba(37,99,235,0.1); color:var(--primary); display:grid; place-items:center; margin:0 auto 16px; font-size:1.75rem;">
-            ${icon("shield-alert")}
-          </div>
-          <span class="badge badge-warning" style="margin-bottom:12px;">Verification in Progress</span>
-          <h2 style="margin-bottom:10px;">Owner Verification Required</h2>
-          <p style="color:var(--text-secondary); line-height:1.6; margin-bottom:24px;">
-            To protect students from fraudulent listings and fake deposit scams in Tuguegarao City, property owner accounts must be verified by a platform administrator before listings become publicly active.
-          </p>
-
-          <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:16px 20px; text-align:left; margin-bottom:20px; font-size:0.875rem;">
-            <div style="font-weight:700; margin-bottom:6px; color:var(--text-primary);">Account Under Review</div>
-            <div><strong>Owner:</strong> ${e(api.profile.name || "Landlord")}</div>
-            <div><strong>Email:</strong> ${e(api.currentUser?.email)}</div>
-            <div><strong>Status:</strong> Pending Administrator Approval</div>
-          </div>
-
-          <div style="background:rgba(37,99,235,0.06); border:1px solid rgba(37,99,235,0.18); border-radius:var(--radius-md); padding:16px 20px; text-align:left; margin-bottom:24px; font-size:0.8125rem;">
-            <strong style="color:var(--primary);">💡 Platform Setup & Local Testing:</strong>
-            <p style="margin:6px 0 0; color:var(--text-secondary);">
-              If you are the platform administrator/developer running DormPath, you can grant yourself administrator rights and verify this account immediately by running this command in your PowerShell terminal:
-            </p>
-            <code style="display:block; margin-top:8px; padding:8px 12px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:6px; font-weight:700; color:var(--primary); word-break:break-all;">npm run make-admin ${e(api.currentUser?.email || "your-email@gmail.com")}</code>
-          </div>
-
-          <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-            <button class="button primary" onclick="location.reload()">${icon("rotate-cw")} Refresh Status</button>
-            <a href="#/dashboard" class="button outline">Back to Dashboard</a>
-          </div>
-        </div>
-      </div>
-    `;
   }
   const properties = await api.ownProperties();
   return `
@@ -1967,9 +2060,9 @@ async function route() {
       case "add-property":
       case "edit-property":
         innerHTML =
-          api.profile?.verified && api.profile?.role === "landlord"
+          api.profile?.role === "landlord"
             ? propertyForm(id ? await api.getProperty(id) : {})
-            : empty("Owner verification required", "A verified landlord account is required to list properties.");
+            : empty("Landlord account required", "A landlord/owner account is required to list properties.");
         break;
       case "rooms":
         innerHTML = await roomsPage(id);
