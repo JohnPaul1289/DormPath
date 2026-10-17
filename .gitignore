@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.env*.local
+*.local
+*-debug.log
+.netlify/
+service-account*.json
+.tools/
+scripts/admin/node_modules/
