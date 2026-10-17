@@ -1958,8 +1958,18 @@ label.check input[type="checkbox"] {
 .message-bubble.mine {
   align-self: flex-end;
   background: var(--primary);
-  color: white;
+  color: #ffffff;
   border-bottom-right-radius: 4px;
+}
+
+.message-bubble.mine p {
+  color: #ffffff !important;
+  font-weight: 500;
+  margin: 0;
+}
+
+.message-bubble.mine .message-time {
+  color: rgba(255, 255, 255, 0.82) !important;
 }
 
 .message-bubble.other {
@@ -1968,6 +1978,16 @@ label.check input[type="checkbox"] {
   color: var(--text-main);
   border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
+}
+
+.message-bubble.other p {
+  color: var(--text-main) !important;
+  font-weight: 500;
+  margin: 0;
+}
+
+.message-bubble.other .message-time {
+  color: var(--text-muted) !important;
 }
 
 .chat-input-row {
@@ -4621,6 +4641,26 @@ body[data-page="map"] .public-layout #main { height:calc(100dvh - 73px) !importa
 [data-theme="dark"] .pmp-zoom-controls {
   background: rgba(19, 27, 42, 0.85);
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+.pmp-chip-btn {
+  padding: 4px 11px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+  box-shadow: var(--shadow-xs);
+}
+
+.pmp-chip-btn:hover {
+  background: var(--primary-subtle);
+  color: var(--primary);
+  border-color: var(--primary);
+  transform: translateY(-1px);
 }
 
 .pmp-zoom-btn {

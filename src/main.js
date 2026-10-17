@@ -84,6 +84,7 @@ import {
   Upload,
   Lock,
   HardDrive,
+  Copy,
 } from "lucide";
 
 const icons = {
@@ -158,8 +159,10 @@ const icons = {
   Upload,
   Lock,
   HardDrive,
+  Copy,
 };
 
+import L from "leaflet";
 import * as api from "./api";
 import {
   TYPES,
@@ -173,6 +176,9 @@ import {
   filterProperties,
   domiReply,
   domiLoaderHtml,
+  calculateDistanceKm,
+  formatDistance,
+  NOTABLE_LANDMARKS,
 } from "./domain";
 import { cached, privateEnabled, clearPrivate } from "./offline";
 
@@ -1035,23 +1041,26 @@ function empty(title, description, action = "") {
 async function details(id) {
   const p = await api.getProperty(id);
   const rooms = await api.listRooms(id, p.status === "published");
-  const saved = state.favorites.some((f) => f.propertyId === p.id);
+  state.currentProperty = p;
+  const coords = getPropertyCoordinates(p);
+  const lat = coords ? coords[1] : null;
+  const lng = coords ? coords[0] : null;
 
   return `
     <div class="detail-container">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
         <div>
-          <div class="overline">${e(p.barangay)} · TUGUEGARAO CITY</div>
+          <div class="overline">${e(p.barangay)} · TUGUEGARAO / PEÑABLANCA</div>
           <h1>${e(p.title)}</h1>
           <p style="display:flex; align-items:center; gap:6px; margin-top:4px;">
             ${icon("map-pin")} ${e(p.address)}
           </p>
         </div>
-        <div style="display:flex; gap:10px;">
+        <div style="display:flex; gap:10px; align-items:center;">
           <button class="button outline ${saved ? "saved" : ""}" data-save="${e(p.id)}">
             ${icon("heart")} <span>${saved ? "Saved" : "Save"}</span>
           </button>
-${getPropertyCoordinates(p) ? `<a class="button outline" href="https://www.google.com/maps/dir/?api=1&destination=${Number(p.lat)},${Number(p.lng)}" target="_blank" rel="noopener noreferrer">${icon("navigation")} Directions</a>` : `<span class="badge">Ask owner for exact location</span>`}
+          ${lat && lng ? `<a class="button primary" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener noreferrer">${icon("navigation")} Directions</a>` : `<span class="badge">Location pending</span>`}
         </div>
       </div>
 
@@ -1133,6 +1142,64 @@ ${getPropertyCoordinates(p) ? `<a class="button outline" href="https://www.googl
                   .join("") || "<p>No room inventory listed yet.</p>"
               }
             </div>
+          </div>
+
+          <!-- Location & Accurate Map Directions Section -->
+          <div class="detail-section" style="margin-top:24px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px; margin-bottom:16px;">
+              <div>
+                <h3 style="display:flex; align-items:center; gap:8px;">
+                  ${icon("map-pin")} Property Location & Directions
+                </h3>
+                <p style="font-size:0.875rem; color:var(--text-secondary); margin-top:4px;">
+                  ${e(p.address)}, ${e(p.barangay)}, Tuguegarao / Peñablanca
+                </p>
+                ${lat && lng ? `<span style="font-size:0.75rem; color:var(--text-muted); font-family:monospace; display:inline-block; margin-top:2px;">Pin GPS: ${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E</span>` : ""}
+              </div>
+              ${lat && lng ? `
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <a class="button primary small" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener noreferrer" style="font-weight:700;">
+                    ${icon("navigation")} Turn-by-Turn Directions
+                  </a>
+                  <a class="button outline small" href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener noreferrer">
+                    Google Maps
+                  </a>
+                  <a class="button outline small" href="https://waze.com/ul?ll=${lat},${lng}&navigate=yes" target="_blank" rel="noopener noreferrer">
+                    Waze
+                  </a>
+                  <button type="button" class="button outline small" data-copy-coords="${lat},${lng}">
+                    ${icon("copy")} Copy Coordinates
+                  </button>
+                </div>
+              ` : `<span class="badge">Coordinates pending confirmation</span>`}
+            </div>
+
+            <!-- Interactive Leaflet Preview Canvas -->
+            ${lat && lng ? `
+              <div id="property-detail-map" style="width:100%; height:300px; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); margin-bottom:14px; background:var(--bg-subtle);"></div>
+
+              <!-- Campus Proximity Badges -->
+              <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:14px 16px;">
+                <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                  ${icon("compass")} Proximity to Campuses & Landmarks
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+                  ${NOTABLE_LANDMARKS.slice(0, 6).map((lm) => {
+                    const d = calculateDistanceKm(lat, lng, lm.lat, lm.lng);
+                    const fmt = formatDistance(d);
+                    const estWalk = Math.round(d * 12);
+                    const estRide = Math.max(2, Math.round(d * 2.5));
+                    return `
+                      <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 12px; font-size:0.8125rem;">
+                        <div style="font-weight:700; color:var(--text-main); margin-bottom:2px;">${e(lm.short)}</div>
+                        <div style="color:var(--primary); font-weight:700;">${fmt}</div>
+                        <div style="color:var(--text-muted); font-size:0.75rem;">${d <= 1.2 ? `~${estWalk} min walk` : `~${estRide} min ride`}</div>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              </div>
+            ` : ""}
           </div>
         </div>
 
@@ -1623,7 +1690,7 @@ function renderMessages(items) {
         (m) => `
       <div class="message-bubble ${m.senderId === api.currentUser.uid ? "mine" : "other"}">
         <p>${e(m.text)}</p>
-        <div style="font-size:0.6875rem; opacity:0.8; margin-top:4px; text-align:right;">
+        <div class="message-time" style="font-size:0.6875rem; opacity:0.85; margin-top:4px; text-align:right;">
           ${date(m.createdAt)}
         </div>
       </div>
@@ -3214,6 +3281,54 @@ async function route() {
       try { await mountMap(); } catch { await mountMapFallback($("#map")); }
     }
 
+    if (page === "property" && state.currentProperty) {
+      const p = state.currentProperty;
+      const coords = getPropertyCoordinates(p);
+      const mapContainer = $("#property-detail-map");
+      if (mapContainer && coords) {
+        const lat = coords[1];
+        const lng = coords[0];
+        try {
+          const detailMap = L.map(mapContainer, {
+            center: [lat, lng],
+            zoom: 16,
+            zoomControl: false,
+            scrollWheelZoom: false,
+          });
+          L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+          }).addTo(detailMap);
+
+          const markerIcon = L.divIcon({
+            className: "pmp-marker-wrapper",
+            html: `
+              <div class="pmp-marker-container">
+                <div class="pmp-marker-pulse"></div>
+                <div class="pmp-marker-badge" style="background:#2855e8; color:white;">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <polyline points="9 22 9 12 15 12 15 22"/>
+                  </svg>
+                </div>
+                <div class="pmp-marker-tip" style="border-top-color:#2855e8;"></div>
+              </div>
+            `,
+            iconSize: [44, 52],
+            iconAnchor: [22, 50],
+            popupAnchor: [0, -48]
+          });
+
+          const m = L.marker([lat, lng], { icon: markerIcon }).addTo(detailMap);
+          m.bindPopup(`<div style="font-family:var(--font-sans);"><strong style="font-size:0.875rem;">${e(p.title)}</strong><div style="font-size:0.75rem; color:#64748b; margin-top:2px;">${e(p.address)}</div><div style="margin-top:6px;"><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener noreferrer" style="color:#2855e8; font-weight:700; font-size:0.75rem;">Get Directions ↗</a></div></div>`).openPopup();
+          setTimeout(() => detailMap.invalidateSize(), 250);
+          setTimeout(() => detailMap.invalidateSize(), 800);
+        } catch (e) {
+          console.warn("Detail map initialization warning:", e);
+        }
+      }
+    }
+
     if (page === "add-property" || page === "edit-property") {
       const pickerMount = $("#property-map-picker-mount");
       if (pickerMount) {
@@ -3224,7 +3339,7 @@ async function route() {
         const barangaySelect = $("#property-barangay-select");
         const addressInput = form?.querySelector('input[name="address"]');
 
-        mountPropertyMapPicker(pickerMount, {
+        state.propertyPicker = mountPropertyMapPicker(pickerMount, {
           initialLat: latInput?.value ? Number(latInput.value) : null,
           initialLng: lngInput?.value ? Number(lngInput.value) : null,
           initialBarangay: barangaySelect?.value || "",
@@ -4942,8 +5057,21 @@ document.addEventListener("change", (event) => {
   }
 });
 
-// Landlord Live GPS Location Capture Listener
+// Copy GPS Coordinates & Landlord Live GPS Location Capture Listener
 document.addEventListener("click", (event) => {
+  const copyBtn = event.target.closest("[data-copy-coords]");
+  if (copyBtn) {
+    const coords = copyBtn.dataset.copyCoords;
+    if (coords && navigator.clipboard) {
+      navigator.clipboard.writeText(coords).then(() => {
+        toast(`GPS coordinates (${coords}) copied! You can paste directly into Grab, Angkas, Maxim, or Google Maps.`);
+      }).catch(() => {
+        toast("Unable to access clipboard.");
+      });
+    }
+    return;
+  }
+
   const btn = event.target.closest("#btn-capture-landlord-gps");
   if (!btn) return;
   if (!navigator.geolocation) {
@@ -4963,6 +5091,9 @@ document.addEventListener("click", (event) => {
       const lngInput = $("#property-lng");
       if (latInput) latInput.value = lat;
       if (lngInput) lngInput.value = lng;
+      if (state.propertyPicker) {
+        state.propertyPicker.setCoordinates(lat, lng, "Device GPS Pinpoint");
+      }
       const statusText = $("#gps-status-text");
       if (statusText) {
         statusText.innerHTML = `📍 <strong style="color:var(--success);">Live GPS Captured:</strong> ${lat}° N, ${lng}° E <span style="color:var(--text-muted);">(Accuracy: ±${Math.round(pos.coords.accuracy)}m)</span>`;
@@ -4994,7 +5125,9 @@ document.addEventListener("click", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.id === "property-barangay-select") {
     const val = event.target.value;
-    if (val && BARANGAY_COORDINATES[val]) {
+    if (val && state.propertyPicker) {
+      state.propertyPicker.setBarangay(val);
+    } else if (val && BARANGAY_COORDINATES[val]) {
       const coords = BARANGAY_COORDINATES[val];
       const latInput = $("#property-lat");
       const lngInput = $("#property-lng");

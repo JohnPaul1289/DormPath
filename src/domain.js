@@ -257,3 +257,36 @@ export function domiLoaderHtml(size = "section", progress = null) {
 
   return `<div class="domi-loader domi-loader-${size} domi-fade-in" role="status" aria-label="Loading"><span class="domi-sr-only">Loading</span><div class="domi-ring-container"><div class="domi-ambient-glow" aria-hidden="true"></div><div class="domi-ring-track" aria-hidden="true"></div><div class="domi-spinner-rotator" aria-hidden="true"><div class="domi-conic-arc"></div><div class="domi-comet-head"></div></div><div class="domi-mascot-pod" aria-hidden="true"><img src="/domi-loader.png" alt="" class="domi-mascot-img" onerror="if(this.dataset.fb){this.onerror=null;this.style.visibility='hidden'}else{this.dataset.fb='1';this.src='/icon-192.png'}" /><div class="domi-mascot-shadow"></div></div></div></div>`;
 }
+
+export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export function formatDistance(km) {
+  if (km == null || isNaN(km)) return "";
+  if (km < 1) {
+    return `${Math.round(km * 1000)} m`;
+  }
+  return `${km.toFixed(1)} km`;
+}
+
+export const NOTABLE_LANDMARKS = [
+  { name: "University of Saint Louis (USL)", short: "USL", lat: 17.6056, lng: 121.7228 },
+  { name: "St. Paul University Philippines (SPUP)", short: "SPUP", lat: 17.6167, lng: 121.7289 },
+  { name: "CSU Andrews (Main Campus)", short: "CSU Andrews", lat: 17.6189, lng: 121.7197 },
+  { name: "CSU Carig Campus", short: "CSU Carig", lat: 17.6534, lng: 121.7501 },
+  { name: "Cagayan Valley Medical Center (CVMC)", short: "CVMC", lat: 17.6565, lng: 121.7516 },
+  { name: "Tuguegarao City Hall", short: "City Hall", lat: 17.6508, lng: 121.7482 },
+  { name: "SM Center Tuguegarao Downtown", short: "SM Downtown", lat: 17.6142, lng: 121.7265 },
+  { name: "Robinsons Place Tuguegarao", short: "Robinsons", lat: 17.6042, lng: 121.7348 }
+];

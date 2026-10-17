@@ -99,6 +99,17 @@ export function mountPropertyMapPicker(mountEl, {
           <button type="button" id="pmp-search-clear" class="pmp-search-clear-btn" aria-label="Clear search" style="display:none;">✕</button>
         </div>
         <div id="pmp-search-dropdown" class="pmp-search-dropdown" style="display:none;"></div>
+
+        <!-- Quick Landmark Flying Chips -->
+        <div class="pmp-quick-chips" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center;">
+          <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">Quick jump:</span>
+          <button type="button" class="pmp-chip-btn" data-lat="17.6056" data-lng="121.7228" data-name="University of Saint Louis (USL)">USL</button>
+          <button type="button" class="pmp-chip-btn" data-lat="17.6167" data-lng="121.7289" data-name="St. Paul University Philippines (SPUP)">SPUP</button>
+          <button type="button" class="pmp-chip-btn" data-lat="17.6189" data-lng="121.7197" data-name="CSU Andrews (Main)">CSU Andrews</button>
+          <button type="button" class="pmp-chip-btn" data-lat="17.6534" data-lng="121.7501" data-name="CSU Carig Campus">CSU Carig</button>
+          <button type="button" class="pmp-chip-btn" data-lat="17.6565" data-lng="121.7516" data-name="CVMC Hospital">CVMC</button>
+          <button type="button" class="pmp-chip-btn" data-lat="17.6142" data-lng="121.7265" data-name="SM Center Downtown">SM Downtown</button>
+        </div>
       </div>
 
       <!-- Map Display Container -->
@@ -270,21 +281,37 @@ export function mountPropertyMapPicker(mountEl, {
   function onLocationChanged(lat, lng, shouldCenter = false, zoomLevel = null, precomputedAddress = "") {
     placeOrMoveMarker(lat, lng, shouldCenter, zoomLevel);
 
-    // Unconfirm until user confirms the new pin
-    isConfirmed = false;
-    statusPill.className = "pmp-status-pill is-pending";
-    statusPill.textContent = "Unsaved Location (Confirm Below)";
+    isConfirmed = true;
+    statusPill.className = "pmp-status-pill is-confirmed";
+    statusPill.textContent = "✓ Accurate Location Selected";
     confirmBtn.disabled = false;
+
+    const nearestBarangay = findNearestBarangay(lat, lng);
+    const initialAddr = precomputedAddress || `${nearestBarangay}, Tuguegarao / Peñablanca`;
+
+    // Immediately push exact coordinates to parent form inputs so saving listing never uses fallback!
+    onLocationConfirmed({
+      lat: currentLat,
+      lng: currentLng,
+      address: initialAddr,
+      barangay: nearestBarangay
+    });
 
     // Update address preview
     if (precomputedAddress) {
       addressPreview.textContent = precomputedAddress;
     } else {
-      addressPreview.textContent = "Locating address details...";
+      addressPreview.textContent = "Locating exact address details...";
       clearTimeout(reverseDebounce);
       reverseDebounce = setTimeout(async () => {
         const addr = await reverseGeocode(lat, lng);
         addressPreview.textContent = addr;
+        onLocationConfirmed({
+          lat: currentLat,
+          lng: currentLng,
+          address: addr,
+          barangay: nearestBarangay
+        });
       }, 350);
     }
   }
@@ -316,7 +343,7 @@ export function mountPropertyMapPicker(mountEl, {
       barangay: nearestBarangay
     });
 
-    notify("Property location confirmed! Coordinates saved for your listing.");
+    notify(`Property location confirmed! (${currentLat.toFixed(5)}° N, ${currentLng.toFixed(5)}° E)`);
   });
 
   // "Use My Current Location" button
@@ -497,9 +524,32 @@ export function mountPropertyMapPicker(mountEl, {
   });
   resizeObserver.observe(mapContainer);
 
+  // Quick Landmark Flying Chips click listener
+  mountEl.querySelectorAll(".pmp-chip-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const lat = Number(btn.dataset.lat);
+      const lng = Number(btn.dataset.lng);
+      const name = btn.dataset.name;
+      onLocationChanged(lat, lng, true, 16.5, name);
+      searchInput.value = name;
+      notify(`Map centered on ${name}. Adjust pin to your exact building entrance.`);
+    });
+  });
+
   return {
     map,
     getCoordinates: () => ({ lat: currentLat, lng: currentLng, isConfirmed }),
+    setBarangay: (barangayName) => {
+      if (barangayName && BARANGAY_COORDINATES[barangayName]) {
+        const coords = BARANGAY_COORDINATES[barangayName];
+        const lat = coords[1];
+        const lng = coords[0];
+        onLocationChanged(lat, lng, true, 15.5, `${barangayName}, Tuguegarao / Peñablanca`);
+      }
+    },
+    setCoordinates: (lat, lng, addr = "") => {
+      onLocationChanged(lat, lng, true, 16.5, addr);
+    },
     destroy: () => {
       resizeObserver.disconnect();
       map.remove();
