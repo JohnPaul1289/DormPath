@@ -10,6 +10,7 @@ import {
   sendPasswordResetEmail,
   sendEmailVerification,
   updateProfile,
+  updatePassword,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -198,11 +199,37 @@ export async function resetPassword(email) {
   requireDB();
   await sendPasswordResetEmail(auth, email);
 }
-export async function saveProfile(name) {
+export async function saveProfile(data) {
   requireUser();
-  await updateDoc(doc(db, "users", currentUser.uid), { name });
-  await updateProfile(currentUser, { displayName: name });
-  profile = { ...profile, name };
+  const payload = typeof data === "string" ? { name: data } : (data || {});
+  const updates = {};
+  if (payload.name !== undefined) updates.name = payload.name;
+  if (payload.photoURL !== undefined) updates.photoURL = payload.photoURL;
+  if (payload.school !== undefined) updates.school = payload.school;
+  if (payload.phone !== undefined) updates.phone = payload.phone;
+  if (payload.bio !== undefined) updates.bio = payload.bio;
+
+  if (Object.keys(updates).length > 0) {
+    await updateDoc(doc(db, "users", currentUser.uid), updates);
+  }
+  const authUpdates = {};
+  if (payload.name !== undefined) authUpdates.displayName = payload.name;
+  if (payload.photoURL !== undefined) authUpdates.photoURL = payload.photoURL;
+  if (Object.keys(authUpdates).length > 0) {
+    await updateProfile(currentUser, authUpdates);
+  }
+  profile = { ...profile, ...updates };
+}
+export async function changePassword(newPassword) {
+  requireUser();
+  if (!newPassword || newPassword.length < 8) {
+    throw Error("Password must be at least 8 characters long.");
+  }
+  await updatePassword(currentUser, newPassword);
+}
+export async function sendVerification() {
+  requireUser();
+  await sendEmailVerification(currentUser);
 }
 export async function publicProperties(cursor = null) {
   requireDB();

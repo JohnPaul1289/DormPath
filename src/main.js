@@ -272,7 +272,16 @@ function publicLayout(content) {
             ${
               api.currentUser
                 ? `<a href="#/dashboard" class="button outline small">${icon("layout-dashboard")} Dashboard</a>
-                   <a href="#/profile" class="button primary small">${e(api.profile?.name || "Account")}</a>`
+                   <a href="#/profile" class="button primary small" style="display:inline-flex; align-items:center; gap:8px;">
+                     <span style="width:20px; height:20px; border-radius:50%; background:rgba(255,255,255,0.25); display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; overflow:hidden;">
+                       ${
+                         api.currentUser?.photoURL || api.profile?.photoURL
+                           ? `<img src="${e(api.currentUser?.photoURL || api.profile?.photoURL)}" style="width:100%; height:100%; object-fit:cover;">`
+                           : (api.profile?.name || "U")[0].toUpperCase()
+                       }
+                     </span>
+                     <span>${e(api.profile?.name || "Account")}</span>
+                   </a>`
                 : `<a href="#/login" class="button text-button">Log in</a>
                    <a href="#/register" class="button primary small">Get started ${icon("arrow-right")}</a>`
             }
@@ -365,6 +374,7 @@ function appLayout(content) {
               ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
             </a>
             ${navItem("notifications", "Inquiry Alerts", "bell")}
+            ${navItem("profile", "Profile & Settings", "user")}
             ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
           </div>
 
@@ -396,23 +406,30 @@ function appLayout(content) {
               ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
             </a>
             ${navItem("notifications", "Notifications", "bell")}
+            ${navItem("profile", "Profile & Settings", "user")}
             ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
           </div>
         `
         }
 
         <div class="sidebar-bottom">
-          <div class="sidebar-profile-pill">
-            <div class="sidebar-avatar">${(api.profile?.name || "U")[0].toUpperCase()}</div>
+          <a href="#/profile" class="sidebar-profile-pill ${current === "profile" ? "active" : ""}" style="text-decoration:none; color:inherit; cursor:pointer;" title="Edit Profile & Account Settings">
+            <div class="sidebar-avatar">
+              ${
+                api.currentUser?.photoURL || api.profile?.photoURL
+                  ? `<img src="${e(api.currentUser?.photoURL || api.profile?.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="PFP">`
+                  : (api.profile?.name || "U")[0].toUpperCase()
+              }
+            </div>
             <div style="flex:1; min-width:0;">
               <strong style="display:block; font-size:0.8125rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                 ${e(api.profile?.name || "Neighbor")}
               </strong>
               <span style="font-size:0.6875rem; color:var(--text-muted); text-transform:capitalize;">
-                ${e(api.profile?.role || "Student")}
+                ${e(api.profile?.role || "Student")} · Settings ⚙️
               </span>
             </div>
-          </div>
+          </a>
           <div style="display:flex; gap:6px; margin-top:8px;">
             <button class="button outline small" style="flex:1;" data-action="theme" title="Toggle theme">
               ${icon("sun-moon")} Appearance
@@ -1398,46 +1415,181 @@ async function wantedPage() {
   `;
 }
 
-// Redesigned Profile Page
+// Redesigned Profile & Account Settings Page
 async function profilePage() {
+  const pfp = api.currentUser?.photoURL || api.profile?.photoURL || "";
+  const initial = (api.profile?.name || "U")[0].toUpperCase();
+  const isStudent = api.profile?.role === "student";
+  const isLandlord = api.profile?.role === "landlord";
+  const emailVerified = api.currentUser?.emailVerified;
+
   return `
-    <div style="max-width:640px;">
-      <div style="margin-bottom:24px;">
+    <div class="profile-shell">
+      <div style="margin-bottom:28px;">
         <div class="overline">ACCOUNT SETTINGS</div>
-        <h2>Your Profile</h2>
+        <h2>Profile & Security</h2>
+        <p style="color:var(--text-secondary); margin-top:4px;">
+          Manage your personal details, profile picture, account security, and offline preferences.
+        </p>
       </div>
 
-      <div class="detail-section">
-        <form id="profile-form">
-          <label>Display name
-            <input name="name" required maxlength="80" value="${e(api.profile?.name)}">
-          </label>
-          <label>Email address
-            <input value="${e(api.currentUser?.email)}" disabled style="background:var(--bg-subtle);">
-          </label>
-          <div style="margin:16px 0; font-size:0.875rem;">
-            Account type: <strong style="text-transform:capitalize;">${e(api.profile?.role || "student")}</strong>
-            ${api.profile?.verified ? ` · <span class="badge badge-success">Verified Owner</span>` : ""}
-            ${api.isAdmin ? ` · <span class="badge badge-outline">Administrator</span>` : ""}
+      <!-- Avatar & Photo Upload -->
+      <div class="profile-card">
+        <div class="profile-section-heading">
+          ${icon("camera")} Profile Picture
+        </div>
+        <div class="profile-avatar-row">
+          <div class="profile-avatar-container">
+            ${
+              pfp
+                ? `<img src="${e(pfp)}" class="profile-avatar-img" alt="Profile Picture">`
+                : `<div class="profile-avatar-placeholder">${initial}</div>`
+            }
           </div>
-          <button class="button primary">Save Changes</button>
+          <div class="profile-avatar-controls">
+            <input type="file" id="pfp-file-input" accept="image/jpeg,image/png,image/webp" style="display:none;">
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="button primary small" data-action="trigger-pfp">
+                ${icon("upload")} Upload Photo
+              </button>
+              ${
+                pfp
+                  ? `<button type="button" class="button outline small" data-action="remove-pfp" style="color:var(--danger); border-color:var(--danger);">
+                      Remove Photo
+                    </button>`
+                  : ""
+              }
+            </div>
+            <div class="profile-avatar-hint">
+              JPEG, PNG, or WebP under 10 MB. Profile photos help landlords and students recognize each other.
+            </div>
+          </div>
+        </div>
+
+        <!-- Personal Details Form -->
+        <form id="profile-form">
+          <div class="profile-section-heading" style="margin-top:20px;">
+            ${icon("user")} Personal Information
+          </div>
+
+          <div class="profile-grid-2">
+            <label>Full Name
+              <input name="name" required maxlength="80" value="${e(api.profile?.name || "")}" placeholder="Your Full Name">
+            </label>
+            <label>Contact Phone
+              <input name="phone" type="tel" maxlength="30" value="${e(api.profile?.phone || "")}" placeholder="+63 912 345 6789">
+            </label>
+          </div>
+
+          <label style="margin-top:12px;">Email Address
+            <div style="position:relative; display:flex; align-items:center;">
+              <input value="${e(api.currentUser?.email || "")}" disabled style="background:var(--bg-subtle); padding-right:120px;">
+              <div style="position:absolute; right:10px;">
+                ${
+                  emailVerified
+                    ? `<span class="admin-badge badge-active">${icon("shield-check")} Verified</span>`
+                    : `<button type="button" class="button outline small" data-action="send-verify-email" style="padding:4px 8px; font-size:0.75rem;">Verify Email</button>`
+                }
+              </div>
+            </div>
+          </label>
+
+          ${
+            isStudent
+              ? `
+            <label style="margin-top:12px;">Preferred School / Campus in Tuguegarao
+              <input name="school" maxlength="120" value="${e(api.profile?.school || "")}" placeholder="e.g., Cagayan State University, SPUP, USL">
+            </label>
+            <label style="margin-top:12px;">Bio & Roommate Preferences
+              <textarea name="bio" rows="3" maxlength="500" placeholder="Brief note about yourself, your year/course, study habits, or preferred room type...">${e(api.profile?.bio || "")}</textarea>
+            </label>
+          `
+              : ""
+          }
+
+          <div style="margin:20px 0 16px; padding:12px 16px; background:var(--bg-subtle); border-radius:var(--radius-md); font-size:0.875rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <div>
+              Platform Role: <strong style="text-transform:capitalize;">${e(api.profile?.role || "student")}</strong>
+              ${api.profile?.verified ? ` · <span class="admin-badge badge-verified">${icon("shield-check")} Verified Landlord</span>` : ""}
+              ${api.isAdmin ? ` · <span class="admin-badge badge-you">${icon("shield-check")} Administrator</span>` : ""}
+            </div>
+            ${
+              isLandlord && !api.profile?.verified
+                ? `<span style="font-size:0.75rem; color:var(--text-muted);">Verification review is in progress by admins.</span>`
+                : ""
+            }
+          </div>
+
+          <button class="button primary" type="submit">
+            Save Changes
+          </button>
         </form>
       </div>
 
-      <div class="detail-section">
-        <h3>Offline Cache Preferences</h3>
-        <p style="margin:8px 0 16px;">Public listings are cached automatically. You can opt in to cache private chats on this device.</p>
-        <label class="check">
-          <input type="checkbox" id="private-cache" ${privateEnabled() ? "checked" : ""}> Store conversations and message drafts offline
+      <!-- Security: Password Management -->
+      <div class="profile-card">
+        <div class="profile-section-heading">
+          ${icon("lock")} Password & Security
+        </div>
+        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:18px;">
+          Keep your account secure with a strong password of at least 8 characters.
+        </p>
+
+        <form id="change-password-form">
+          <div class="profile-grid-2">
+            <label class="password-field">New Password
+              <input name="newPassword" id="profile-new-pass" type="password" required minlength="8" placeholder="At least 8 characters">
+              <button type="button" class="password-toggle-btn" data-action="toggle-password" aria-label="Toggle password visibility">
+                ${icon("eye")}
+              </button>
+            </label>
+            <label class="password-field">Confirm New Password
+              <input name="confirmPassword" id="profile-confirm-pass" type="password" required minlength="8" placeholder="Repeat new password">
+            </label>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; flex-wrap:wrap; gap:12px;">
+            <button class="button outline" type="submit">
+              Update Password
+            </button>
+            <button type="button" class="button text-button small" data-action="send-reset-email">
+              Forgot password? Send reset email
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Offline Cache & Data Management -->
+      <div class="profile-card">
+        <div class="profile-section-heading">
+          ${icon("hard-drive")} Offline Data & Privacy
+        </div>
+        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:16px;">
+          Public listings are cached automatically for quick loading. You can choose whether to store private chat conversations on this device.
+        </p>
+        <label class="check" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="private-cache" ${privateEnabled() ? "checked" : ""}>
+          <span>Cache private message threads locally on this device</span>
         </label>
         <div style="margin-top:16px;">
-          <button class="button outline small" data-action="clear-private">Clear cached offline data</button>
+          <button class="button outline small" data-action="clear-private">
+            ${icon("trash-2")} Clear Cached Offline Data
+          </button>
         </div>
       </div>
 
-      <button class="button outline" data-action="logout" style="color:var(--danger); border-color:var(--danger);">
-        ${icon("log-out")} Sign out
-      </button>
+      <!-- Account Session -->
+      <div class="profile-card" style="border-color:#fecaca;">
+        <div class="profile-section-heading" style="color:var(--danger);">
+          ${icon("log-out")} Account Session
+        </div>
+        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:16px;">
+          Signing out will end your current session on this device.
+        </p>
+        <button class="button outline" data-action="logout" style="color:var(--danger); border-color:var(--danger);">
+          ${icon("log-out")} Sign out
+        </button>
+      </div>
     </div>
   `;
 }
@@ -1651,57 +1803,280 @@ function roomDialog(r = {}) {
 }
 
 // Redesigned Admin Console
-async function adminPage(tab = "properties") {
+async function adminPage(tab = "users") {
   if (!api.isAdmin) return empty("Admin Access Required", "This area is restricted to platform administrators.");
-  const allowed = ["properties", "users", "reports", "auditLogs"];
-  if (!allowed.includes(tab)) tab = "properties";
+  const allowed = ["users", "properties", "reports", "auditLogs"];
+  if (!allowed.includes(tab)) tab = "users";
   const data = await api.adminList(tab);
 
   return `
-    <div>
-      <div style="margin-bottom:24px;">
-        <div class="overline">PLATFORM GOVERNANCE</div>
-        <h2>Admin Console</h2>
+    <div class="admin-shell">
+      <div class="admin-header">
+        <div class="admin-title-area">
+          <div class="overline">PLATFORM GOVERNANCE</div>
+          <h2>${icon("shield-check")} Admin Console</h2>
+          <p style="color:var(--text-secondary); font-size:0.875rem; margin-top:4px;">
+            Supervise user identities, moderate boarding house listings, and resolve student safety reports.
+          </p>
+        </div>
       </div>
 
-      <div style="display:flex; gap:8px; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px;">
-        ${allowed.map((t) => `<a href="#/admin/${t}" class="button ${t === tab ? "primary" : "outline"} small">${t.toUpperCase()}</a>`).join("")}
+      <!-- Admin Tabs Navigation -->
+      <div class="admin-tabs-nav">
+        <a href="#/admin/users" class="admin-tab-link ${tab === "users" ? "active" : ""}">
+          ${icon("users")} User Accounts
+          <span class="admin-tab-count">${tab === "users" ? data.length : "•"}</span>
+        </a>
+        <a href="#/admin/properties" class="admin-tab-link ${tab === "properties" ? "active" : ""}">
+          ${icon("building-2")} Property Listings
+          <span class="admin-tab-count">${tab === "properties" ? data.length : "•"}</span>
+        </a>
+        <a href="#/admin/reports" class="admin-tab-link ${tab === "reports" ? "active" : ""}">
+          ${icon("flag")} Safety Reports
+          <span class="admin-tab-count">${tab === "reports" ? data.length : "•"}</span>
+        </a>
+        <a href="#/admin/auditLogs" class="admin-tab-link ${tab === "auditLogs" ? "active" : ""}">
+          ${icon("file-text")} Audit Trail
+          <span class="admin-tab-count">${tab === "auditLogs" ? data.length : "•"}</span>
+        </a>
       </div>
 
-      <div class="detail-section">
-        ${
-          data.length
-            ? data
-                .map(
-                  (r) => `
-              <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border-light);">
-                <div>
-                  <strong>${e(r.title || r.name || r.reason || r.targetId || r.id)}</strong>
-                  <div style="font-size:0.8125rem; color:var(--text-secondary);">
-                    ${e(r.status || r.role || r.collection || "")}
-                    ${tab === "users" ? `· ${r.verified ? "Verified" : "Unverified"} · ${r.disabled ? "Suspended" : "Active"}` : ""}
+      <!-- Tab Content: Users -->
+      ${
+        tab === "users"
+          ? `
+        <div class="admin-toolbar">
+          <div class="admin-search-box">
+            <span class="admin-search-icon">${icon("search")}</span>
+            <input type="text" id="admin-user-search" class="admin-search-input" placeholder="Search user by name or ID...">
+          </div>
+          <div class="admin-filter-pills">
+            <button type="button" class="admin-filter-chip active" data-user-filter="all">All (${data.length})</button>
+            <button type="button" class="admin-filter-chip" data-user-filter="landlord">Landlords (${data.filter((u) => u.role === "landlord").length})</button>
+            <button type="button" class="admin-filter-chip" data-user-filter="student">Students (${data.filter((u) => u.role === "student").length})</button>
+            <button type="button" class="admin-filter-chip" data-user-filter="unverified">Pending Landlords (${data.filter((u) => u.role === "landlord" && !u.verified).length})</button>
+            <button type="button" class="admin-filter-chip" data-user-filter="suspended">Suspended (${data.filter((u) => u.disabled).length})</button>
+          </div>
+        </div>
+
+        <div id="admin-users-list">
+          ${
+            data.length
+              ? data
+                  .map((r) => {
+                    const isSelf = r.id === api.currentUser?.uid;
+                    const isLandlord = r.role === "landlord";
+                    const isStudent = r.role === "student";
+                    const initial = (r.name || "U")[0].toUpperCase();
+
+                    return `
+                <div class="admin-user-card ${r.disabled ? "is-suspended" : ""}" data-role="${e(r.role || "student")}" data-verified="${r.verified ? "true" : "false"}" data-disabled="${r.disabled ? "true" : "false"}">
+                  <div class="admin-user-profile">
+                    <div class="admin-avatar ${isLandlord ? "landlord" : "student"}">
+                      ${r.photoURL ? `<img src="${e(r.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="User">` : initial}
+                    </div>
+                    <div class="admin-user-details">
+                      <div class="admin-user-name">
+                        <span>${e(r.name || "Unnamed User")}</span>
+                        ${isSelf ? `<span class="admin-badge badge-you">Current Admin (You)</span>` : ""}
+                      </div>
+                      <div class="admin-user-meta">
+                        ${
+                          isLandlord
+                            ? `<span class="admin-badge badge-landlord">🏠 Landlord / Owner</span>`
+                            : `<span class="admin-badge badge-student">🎓 Student Member</span>`
+                        }
+                        ${
+                          isLandlord
+                            ? r.verified
+                              ? `<span class="admin-badge badge-verified">${icon("shield-check")} Verified Owner</span>`
+                              : `<span class="admin-badge badge-unverified">${icon("clock")} Unverified</span>`
+                            : ""
+                        }
+                        ${
+                          r.disabled
+                            ? `<span class="admin-badge badge-suspended">${icon("ban")} Suspended</span>`
+                            : `<span class="admin-badge badge-active">${icon("check")} Active</span>`
+                        }
+                        <span style="font-size:0.75rem; color:var(--text-muted);">UID: ${e(r.id.slice(0, 10))}...</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="admin-actions-group">
+                    ${
+                      isLandlord
+                        ? !r.verified
+                          ? `<button class="button small btn-verify-success" data-verify="${r.id}:true">
+                              ${icon("shield-check")} Verify Owner
+                            </button>`
+                          : `<button class="button outline small" style="color:var(--text-secondary);" data-verify="${r.id}:false" title="Revoke verified owner badge">
+                              Revoke Badge
+                            </button>`
+                        : ""
+                    }
+                    ${
+                      !isSelf
+                        ? r.disabled
+                          ? `<button class="button outline small btn-restore" data-suspend="${r.id}:false">
+                              ${icon("check")} Restore
+                            </button>`
+                          : `<button class="button outline small btn-danger-outline" data-suspend="${r.id}:true">
+                              ${icon("ban")} Suspend
+                            </button>`
+                        : ""
+                    }
                   </div>
                 </div>
-                <div>
+              `;
+                  })
+                  .join("")
+              : `<div class="detail-section"><p class="text-muted">No users found.</p></div>`
+          }
+        </div>
+      `
+          : ""
+      }
+
+      <!-- Tab Content: Properties -->
+      ${
+        tab === "properties"
+          ? `
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${
+            data.length
+              ? data
+                  .map((p) => {
+                    const thumb = p.photos?.[0] || "";
+                    const isPublished = p.status === "published";
+                    const isPending = p.status === "pending" || !p.status;
+                    const isRejected = p.status === "rejected";
+
+                    return `
+                <div class="admin-prop-card">
                   ${
-                    tab === "properties"
-                      ? `<button class="button outline small" data-moderate="properties:${r.id}:published">Approve</button>
-                         <button class="button outline small" data-moderate="properties:${r.id}:rejected">Reject</button>`
-                      : tab === "users"
-                        ? `<button class="button outline small" data-verify="${r.id}">Verify Owner</button>
-                           <button class="button outline small" data-suspend="${r.id}:${!r.disabled}">${r.disabled ? "Restore" : "Suspend"}</button>`
-                        : tab === "reports"
-                          ? `<button class="button outline small" data-moderate="reports:${r.id}:resolved">Resolve</button>`
-                          : ""
+                    thumb
+                      ? `<img src="${e(thumb)}" class="admin-prop-thumb" alt="${e(p.title)}">`
+                      : `<div class="admin-prop-thumb">${icon("building-2")}</div>`
                   }
+                  <div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
+                      <strong>${e(p.title)}</strong>
+                      ${
+                        isPublished
+                          ? `<span class="admin-badge badge-verified">${icon("check")} Published</span>`
+                          : isPending
+                            ? `<span class="admin-badge badge-unverified">${icon("clock")} Pending Approval</span>`
+                            : `<span class="admin-badge badge-suspended">${icon("ban")} Rejected</span>`
+                      }
+                    </div>
+                    <div style="font-size:0.8125rem; color:var(--text-secondary);">
+                      Owner: <strong>${e(p.ownerName || "Unknown")}</strong> · ${e(p.barangay || "Tuguegarao")} · ₱${Number(p.minPrice || 0).toLocaleString()}/month · ${p.available ?? 0} vacancy
+                    </div>
+                  </div>
+                  <div class="admin-actions-group">
+                    <a href="#/property/${e(p.id)}" target="_blank" class="button outline small">
+                      ${icon("external-link")} Preview
+                    </a>
+                    ${
+                      !isPublished
+                        ? `<button class="button small btn-verify-success" data-moderate="properties:${p.id}:published">
+                            ${icon("check")} Approve
+                          </button>`
+                        : ""
+                    }
+                    ${
+                      !isRejected
+                        ? `<button class="button outline small btn-danger-outline" data-moderate="properties:${p.id}:rejected">
+                            ${icon("x")} Reject
+                          </button>`
+                        : ""
+                    }
+                  </div>
                 </div>
-              </div>
-            `,
-                )
-                .join("")
-            : `<p class="text-muted">No items in this section.</p>`
-        }
-      </div>
+              `;
+                  })
+                  .join("")
+              : `<div class="detail-section"><p class="text-muted">No properties submitted yet.</p></div>`
+          }
+        </div>
+      `
+          : ""
+      }
+
+      <!-- Tab Content: Reports -->
+      ${
+        tab === "reports"
+          ? `
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${
+            data.length
+              ? data
+                  .map((rep) => `
+                <div class="admin-prop-card" style="grid-template-columns:1fr auto;">
+                  <div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                      <span class="admin-badge badge-suspended">${icon("flag")} Report</span>
+                      <strong>Property ID: ${e(rep.propertyId || rep.targetId || rep.id)}</strong>
+                      <span class="admin-badge ${rep.status === "resolved" ? "badge-active" : "badge-unverified"}">${e(rep.status || "open")}</span>
+                    </div>
+                    <p style="font-size:0.875rem; color:var(--text-secondary); margin:4px 0;">
+                      ${e(rep.reason || "No reason specified.")}
+                    </p>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">
+                      Reporter UID: ${e(rep.userId || "anonymous")}
+                    </div>
+                  </div>
+                  <div class="admin-actions-group">
+                    <a href="#/property/${e(rep.propertyId || rep.targetId)}" target="_blank" class="button outline small">
+                      View Listing
+                    </a>
+                    ${
+                      rep.status !== "resolved"
+                        ? `<button class="button primary small" data-moderate="reports:${rep.id}:resolved">
+                            ${icon("check")} Mark Resolved
+                          </button>`
+                        : ""
+                    }
+                  </div>
+                </div>
+              `)
+                  .join("")
+              : `<div class="detail-section"><p class="text-muted">No reports on file. The community is safe!</p></div>`
+          }
+        </div>
+      `
+          : ""
+      }
+
+      <!-- Tab Content: Audit Logs -->
+      ${
+        tab === "auditLogs"
+          ? `
+        <div class="detail-section">
+          ${
+            data.length
+              ? data
+                  .map((log) => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border-light); font-size:0.8125rem;">
+                  <div>
+                    <strong>${e(log.collection || "resource")}:${e(log.targetId || "")}</strong>
+                    <div style="color:var(--text-secondary);">
+                      Action: ${e(JSON.stringify(log.changes || {}))}
+                    </div>
+                  </div>
+                  <div style="color:var(--text-muted); text-align:right;">
+                    Actor: ${e((log.actorId || "").slice(0, 8))}...
+                  </div>
+                </div>
+              `)
+                  .join("")
+              : `<p class="text-muted">No audit logs recorded yet.</p>`
+          }
+        </div>
+      `
+          : ""
+      }
     </div>
   `;
 }
@@ -2200,7 +2575,7 @@ async function mountMap() {
    GLOBAL EVENT DELEGATION
    ============================================================================== */
 document.addEventListener("click", async (event) => {
-  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-close-request], [data-offer], [data-send-offer], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], .domi-chip");
+  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-close-request], [data-offer], [data-send-offer], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], .domi-chip");
   if (!el) return;
 
   // DOMI prompt chip clicked
@@ -2399,11 +2774,14 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  // Admin Verification
+  // Admin Verification Toggle (true/false)
   if (el.dataset.verify) {
+    const parts = el.dataset.verify.split(":");
+    const uid = parts[0];
+    const isVerifying = parts[1] !== "false";
     try {
-      await api.moderate("users", el.dataset.verify, { verified: true });
-      toast("Owner verified successfully!");
+      await api.moderate("users", uid, { verified: isVerifying });
+      toast(isVerifying ? "Owner verified successfully!" : "Verification badge revoked.");
       route();
     } catch (err) {
       toast(err.message);
@@ -2411,16 +2789,36 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  // Admin Suspension
+  // Admin Suspension Toggle
   if (el.dataset.suspend) {
     const [id, dis] = el.dataset.suspend.split(":");
+    const shouldDisable = dis === "true";
     try {
-      await api.moderate("users", id, { disabled: dis === "true" });
-      toast(dis === "true" ? "User suspended." : "User restored.");
+      await api.moderate("users", id, { disabled: shouldDisable });
+      toast(shouldDisable ? "User account suspended." : "User account restored.");
       route();
     } catch (err) {
       toast(err.message);
     }
+    return;
+  }
+
+  // Admin User Filtering
+  if (el.dataset.userFilter) {
+    const filter = el.dataset.userFilter;
+    document.querySelectorAll(".admin-filter-chip").forEach((btn) => btn.classList.remove("active"));
+    el.classList.add("active");
+    document.querySelectorAll(".admin-user-card").forEach((card) => {
+      const role = card.dataset.role;
+      const verified = card.dataset.verified === "true";
+      const disabled = card.dataset.disabled === "true";
+      let show = true;
+      if (filter === "landlord") show = role === "landlord";
+      else if (filter === "student") show = role === "student";
+      else if (filter === "unverified") show = role === "landlord" && !verified;
+      else if (filter === "suspended") show = disabled;
+      card.style.display = show ? "" : "none";
+    });
     return;
   }
 
@@ -2485,7 +2883,8 @@ document.addEventListener("click", async (event) => {
       break;
     }
     case "toggle-password": {
-      const inp = $("#auth-password");
+      const field = el.closest(".password-field");
+      const inp = field ? field.querySelector("input") : ($("#auth-password") || $("#profile-new-pass"));
       if (inp) {
         inp.type = inp.type === "password" ? "text" : "password";
         el.innerHTML = icon(inp.type === "password" ? "eye" : "eye-off");
@@ -2493,6 +2892,34 @@ document.addEventListener("click", async (event) => {
       }
       break;
     }
+    case "trigger-pfp":
+      $("#pfp-file-input")?.click();
+      break;
+    case "remove-pfp":
+      try {
+        await api.saveProfile({ photoURL: "" });
+        toast("Profile photo removed.");
+        route();
+      } catch (err) {
+        toast(err.message);
+      }
+      break;
+    case "send-verify-email":
+      try {
+        await api.sendVerification();
+        toast("Verification email sent! Please check your inbox.");
+      } catch (err) {
+        toast(err.message);
+      }
+      break;
+    case "send-reset-email":
+      try {
+        await api.resetPassword(api.currentUser.email);
+        toast(`Password reset link sent to ${api.currentUser.email}`);
+      } catch (err) {
+        toast(err.message);
+      }
+      break;
     case "google-auth": {
       try {
         await api.loginWithGoogle(state.selectedRole || "student");
@@ -2648,10 +3075,27 @@ document.addEventListener("submit", async (event) => {
         route();
         break;
       case "profile-form":
-        await api.saveProfile(values.name);
-        toast("Profile updated.");
+        await api.saveProfile({
+          name: values.name?.trim(),
+          phone: values.phone?.trim() || "",
+          school: values.school?.trim() || "",
+          bio: values.bio?.trim() || "",
+        });
+        toast("Profile updated successfully!");
         route();
         break;
+      case "change-password-form": {
+        const p1 = values.newPassword;
+        const p2 = values.confirmPassword;
+        if (p1 !== p2) {
+          toast("New passwords do not match.");
+          break;
+        }
+        await api.changePassword(p1);
+        toast("Password successfully updated!");
+        form.reset();
+        break;
+      }
       case "domi-chat-form": {
         const text = values.question?.trim();
         if (!text) break;
@@ -2762,6 +3206,34 @@ document.addEventListener("submit", async (event) => {
   } catch (err) {
     const msg = formatAuthError(err);
     if (msg) toast(msg);
+  }
+});
+
+// Profile Photo Upload Change Listener
+document.addEventListener("change", async (event) => {
+  if (event.target.id === "pfp-file-input") {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      toast("Uploading profile photo...");
+      const url = await api.uploadPhoto(file);
+      await api.saveProfile({ photoURL: url });
+      toast("Profile photo updated!");
+      route();
+    } catch (err) {
+      toast(err.message || "Failed to upload photo.");
+    }
+  }
+});
+
+// Admin User Real-time Search Listener
+document.addEventListener("input", (event) => {
+  if (event.target.id === "admin-user-search") {
+    const q = event.target.value.toLowerCase().trim();
+    document.querySelectorAll(".admin-user-card").forEach((card) => {
+      const text = card.textContent.toLowerCase();
+      card.style.display = text.includes(q) ? "" : "none";
+    });
   }
 });
 
