@@ -6,10 +6,11 @@
     <meta name="theme-color" content="#174be8" />
     <meta
       name="description"
-      content="Find your space. Feel at home. Discover boarding houses, dorms and rooms in Tuguegarao City with DormPath. Always free for students."
+      content="Find your space. Feel at home. Discover boarding houses, dorms and rooms in Tuguegarao City with DormPath. Always free for tenants."
     />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/domi-app-icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,10 +18,52 @@
       rel="stylesheet"
     />
     <title>DormPath — Find your space. Feel at home.</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      /* Critical DOMI Loader CSS for instant, unblocked 60 FPS animation on initial boot */
+      .domi-loader { position: relative; display: inline-flex; align-items: center; justify-content: center; user-select: none; box-sizing: border-box; }
+      .domi-ring-container { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+      .domi-ambient-glow { position: absolute; inset: -12%; border-radius: 50%; background: radial-gradient(circle, rgba(0, 245, 255, 0.26) 0%, rgba(139, 92, 246, 0.18) 45%, transparent 70%); filter: blur(10px); animation: domiAmbientPulse 3s ease-in-out infinite; pointer-events: none; }
+      .domi-ring-track { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; box-sizing: border-box; border: 4.5px solid rgba(203, 213, 225, 0.75); }
+      .domi-spinner-rotator { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%; animation: domiSpinRing 1.25s linear infinite; will-change: transform; }
+      .domi-conic-arc { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; box-sizing: border-box; background: conic-gradient(from 0deg, #00f5ff 0deg, #38bdf8 65deg, #2563eb 150deg, #8b5cf6 230deg, #c084fc 280deg, transparent 320deg, transparent 360deg); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #fff calc(100% - 4.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #fff calc(100% - 4.5px)); filter: drop-shadow(0 0 6px rgba(0, 245, 255, 0.85)) drop-shadow(0 0 14px rgba(139, 92, 246, 0.55)); }
+      .domi-comet-head { position: absolute; top: 0; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 8px 3px #00f5ff, 0 0 16px 5px rgba(0, 245, 255, 0.75); transform: translate(-50%, -0.5px); z-index: 3; }
+      .domi-mascot-pod { position: relative; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; animation: domiFloat 2.6s ease-in-out infinite; will-change: transform; }
+      .domi-mascot-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0, 114, 255, 0.32)); animation: domiMascotGlow 2.6s ease-in-out infinite; }
+      .domi-mascot-shadow { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 50%; height: 6px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.2) 0%, transparent 70%); animation: domiShadowPulse 2.6s ease-in-out infinite; }
+      .domi-loader-page { width: 115px; height: 115px; margin: 50px auto; }
+      .domi-loader-page .domi-mascot-pod { width: 60px; height: 60px; }
+      .domi-sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+      @keyframes domiSpinRing { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      @keyframes domiAmbientPulse { 0%, 100% { transform: scale(0.96); opacity: 0.7; } 50% { transform: scale(1.08); opacity: 1; } }
+      @keyframes domiFloat { 0%, 100% { transform: translateY(0px) scale(1); } 50% { transform: translateY(-6px) scale(1.025); } }
+      @keyframes domiMascotGlow { 0%, 100% { filter: drop-shadow(0 4px 10px rgba(0, 114, 255, 0.28)); } 50% { filter: drop-shadow(0 8px 20px rgba(0, 245, 255, 0.55)); } }
+      @keyframes domiShadowPulse { 0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.45; } 50% { transform: translateX(-50%) scale(0.82); opacity: 0.22; } }
+    </style>
   </head>
   <body>
+    <div id="domi-global-overlay" class="domi-loading-overlay" aria-hidden="true"></div>
+    <div id="global-loader"></div>
     <a class="skip" href="#main">Skip to content</a>
-    <div id="app"></div>
+    <div id="app">
+      <div style="min-height:80vh; display:grid; place-items:center;">
+        <div class="domi-loader domi-loader-page" role="status" aria-label="Loading DormPath">
+          <span class="domi-sr-only">Loading</span>
+          <div class="domi-ring-container">
+            <div class="domi-ambient-glow" aria-hidden="true"></div>
+            <div class="domi-ring-track" aria-hidden="true"></div>
+            <div class="domi-spinner-rotator" aria-hidden="true">
+              <div class="domi-conic-arc"></div>
+              <div class="domi-comet-head"></div>
+            </div>
+            <div class="domi-mascot-pod" aria-hidden="true">
+              <img src="/domi-loader.png" alt="" class="domi-mascot-img" onerror="if(this.dataset.fb){this.onerror=null;this.style.visibility='hidden'}else{this.dataset.fb='1';this.src='/icon-192.png'}" />
+              <div class="domi-mascot-shadow"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="toast" role="status" aria-live="polite"></div>
     <dialog id="modal"></dialog>
     <script type="module" src="/src/main.js"></script>

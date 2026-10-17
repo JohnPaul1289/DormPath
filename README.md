@@ -6,9 +6,9 @@ A mobile-first room finder for Tuguegarao City, built with vanilla JavaScript, V
 
 The source and production build are implemented. **This is not a live, launch-verified service yet.** You said the Firebase and Cloudinary accounts have not been created. Until configured, the UI shows honest empty states and account operations report that services are unavailable.
 
-Implemented: public discovery/search/filters/map, detail galleries and costs, email/password accounts, student and owner dashboards, verified-owner property forms and photo uploads, moderation, atomic room/vacancy management, pause/archive/delete, private messaging, message pagination, read status, unread conversation counts, blocking/reporting, favorites/comparison, room requests and private offers, viewing requests/confirmation, on-open vacancy checks, local DOMI suggestions, themes, service worker, IndexedDB public cache and opt-in private history/pending drafts.
+Implemented: public discovery/search/filters/map, detail galleries and costs, email/password accounts, tenant and owner dashboards, verified-owner property forms and photo uploads, moderation, atomic room/vacancy management, pause/archive/delete, private messaging, message pagination, read status, unread conversation counts, blocking/reporting, favorites/comparison, room requests and private offers, viewing requests/confirmation, on-open vacancy checks, local DOMI suggestions, themes, service worker, IndexedDB public cache and opt-in private history/pending drafts.
 
-Not included in the core launch: automated push/background vacancy notifications, a full-text search service, payments/Pro activation, downloadable browser LLM, in-app identity document collection, and self-service account erasure. See `VALIDATION.md` for test evidence and limits. Pro remains deferred until the core passes real-service acceptance testing; it must never restrict essential owner features or student access.
+Not included in the core launch: automated push/background vacancy notifications, a full-text search service, payments/Pro activation, downloadable browser LLM, in-app identity document collection, and self-service account erasure. See `VALIDATION.md` for test evidence and limits. Pro remains deferred until the core passes real-service acceptance testing; it must never restrict essential owner features or tenant access.
 
 ## Run locally
 
@@ -104,11 +104,11 @@ No infrastructure purchase is necessary to begin. Free plans have finite quotas 
 | `users/{uid}/blocks/{otherUid}` | Private block list; checked by message rules |
 | `properties/{propertyId}` | `ownerId`; published records public, pending records owner/admin only |
 | `rooms/{roomId}` | `propertyId`, `ownerId`; capacity and availability; transaction updates parent totals |
-| `conversations/{propertyId_studentUid}` | Immutable two-person participants; property/student/owner IDs; read timestamps |
+| `conversations/{propertyId_tenantUid}` | Immutable two-person participants; property/tenant/owner IDs; read timestamps |
 | `conversations/{id}/messages/{stableId}` | Immutable message text and authenticated sender; server timestamp |
 | `favorites/{uid_propertyId}` | Private user/property reference |
-| `studentRequests/{id}` | Public open requests; requester display name, preferences and move-in date |
-| `viewingRequests/{id}` | Conversation participants; student requests, owner confirms |
+| `tenantRequests/{id}` | Public open requests; requester display name, preferences and move-in date |
+| `viewingRequests/{id}` | Conversation participants; tenant requests, owner confirms |
 | `notifications/{id}` | Private recipient; administrator-created notices |
 | `reports/{id}` | Reporting user and admins; moderation status |
 | `subscriptions/{id}` | Read-only reserved collection; billing deferred |

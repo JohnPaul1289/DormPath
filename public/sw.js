@@ -1,5 +1,5 @@
-const CACHE = "dormpath-v1";
-const PRECACHE = ["/", "/icon.svg", "/manifest.webmanifest", "/domi.png"];
+const CACHE = "dormpath-v3";
+const PRECACHE = ["/", "/domi-loader.png", "/domi-app-icon.png", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest", "/domi.png"];
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -34,7 +34,7 @@ self.addEventListener("fetch", (event) => {
   }
   if (
     u.pathname.startsWith("/assets/") ||
-    ["/domi.png", "/icon.svg"].includes(u.pathname)
+    ["/domi.png", "/domi-loader.png", "/domi-app-icon.png", "/icon-192.png", "/icon-512.png"].includes(u.pathname)
   )
     event.respondWith(
       caches.match(event.request).then(

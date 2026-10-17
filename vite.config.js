@@ -5,6 +5,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes("node_modules/maplibre-gl")) return "maps";
           if (
             id.includes("@firebase/firestore") ||
             id.includes("firebase/firestore/")
@@ -32,7 +33,8 @@ export default defineConfig({
         const files = [
           "/",
           "/index.html",
-          "/icon.svg",
+          "/domi-loader.png",
+          "/domi-app-icon.png",
           "/icon-192.png",
           "/icon-512.png",
           "/manifest.webmanifest",

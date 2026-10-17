@@ -1,12 +1,23 @@
 import "./style.css";
+import { createLoginLimiter } from "./login-limiter";
+const loginLimiter = createLoginLimiter({getItem:k=>localStorage.getItem(k),setItem:(k,v)=>localStorage.setItem(k,v),removeItem:k=>localStorage.removeItem(k)});
+function rememberedLogin() { try { return JSON.parse(localStorage.getItem("dormpath-login-preference")) || {}; } catch { return {}; } }
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as maplibregl from "maplibre-gl";
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { allPublishedListings } from "./listing-pagination";
+import { mountPropertyMapPicker } from "./property-map-picker.js";
+maplibregl.setWorkerUrl(mapWorkerUrl);
+
+function getMapLibre() { return maplibregl; }
+
 import {
   createIcons,
   House,
   Compass,
   Search,
-  Map,
+  Map as MapIcon,
+  Users,
   MessageSquarePlus,
   Heart,
   MessagesSquare,
@@ -21,10 +32,14 @@ import {
   ArrowRight,
   ArrowLeft,
   UserRound,
+  User,
   Wallet,
   BadgeCheck,
   MessageCircle,
   Sparkles,
+  Bot,
+  FileText,
+  Ban,
   KeyRound,
   Sofa,
   Armchair,
@@ -61,13 +76,22 @@ import {
   Shield,
   UserCheck,
   AlertCircle,
+  Download,
+  Smartphone,
+  BedDouble,
+  Image as ImageIcon,
+  Camera,
+  Upload,
+  Lock,
+  HardDrive,
 } from "lucide";
 
 const icons = {
   House,
   Compass,
   Search,
-  Map,
+  Map: MapIcon,
+  Users,
   MessageSquarePlus,
   Heart,
   MessagesSquare,
@@ -82,10 +106,14 @@ const icons = {
   ArrowRight,
   ArrowLeft,
   UserRound,
+  User,
   Wallet,
   BadgeCheck,
   MessageCircle,
   Sparkles,
+  Bot,
+  FileText,
+  Ban,
   KeyRound,
   Sofa,
   Armchair,
@@ -122,16 +150,29 @@ const icons = {
   Shield,
   UserCheck,
   AlertCircle,
+  Download,
+  Smartphone,
+  BedDouble,
+  Image: ImageIcon,
+  Camera,
+  Upload,
+  Lock,
+  HardDrive,
 };
 
 import * as api from "./api";
 import {
   TYPES,
   AMENITIES,
+  TUGUEGARAO_BARANGAYS,
+  PENABLANCA_BARANGAYS,
+  ALL_BARANGAYS,
+  BARANGAY_COORDINATES,
   money,
   escapeHTML as e,
   filterProperties,
   domiReply,
+  domiLoaderHtml,
 } from "./domain";
 import { cached, privateEnabled, clearPrivate } from "./offline";
 
@@ -146,11 +187,11 @@ const state = {
   syncedAt: null,
   filters: {},
   chat: null,
-  selectedRole: "student",
+  selectedRole: "tenant",
   domiHistory: [
     {
       role: "domi",
-      text: "Kumusta! I am DOMI, your 24/7 AI housing companion for Tuguegarao City. Ask me anything about student boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
+      text: "Kumusta! I am DOMI, your housing guide for Tuguegarao City. Ask me anything about tenant boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
       time: "Just now",
     },
   ],
@@ -230,23 +271,129 @@ const navItem = (path, label, iconName) => {
 };
 
 /* ==============================================================================
-   LAYOUTS
+   OFFICIAL DOMI AI GLOBAL LOADING SYSTEM
    ============================================================================== */
 
-// 1. Standalone Authentication Layout (NO SIDEBAR!)
+export { domiLoaderHtml };
+
+let globalLoadingCount = 0;
+let globalLoadingTimer = null;
+let globalLoadingTimeoutRecovery = null;
+
+export function startGlobalLoading(immediate = false) {
+  globalLoadingCount++;
+  clearTimeout(globalLoadingTimeoutRecovery);
+  globalLoadingTimeoutRecovery = setTimeout(() => {
+    if (globalLoadingCount > 0) {
+      console.warn("DOMI loader auto-recovered after timeout");
+      forceStopAllLoading();
+      toast("Request took longer than expected. Please check your connection.");
+    }
+  }, 12000);
+
+  const overlay = $("#domi-global-overlay");
+  if (!overlay) return;
+  if (immediate) {
+    clearTimeout(globalLoadingTimer);
+    globalLoadingTimer = null;
+    overlay.innerHTML = domiLoaderHtml("global");
+    overlay.classList.add("is-active");
+    overlay.setAttribute("aria-hidden", "false");
+  } else if (!globalLoadingTimer && !overlay.classList.contains("is-active")) {
+    globalLoadingTimer = setTimeout(() => {
+      if (globalLoadingCount > 0 && overlay) {
+        overlay.innerHTML = domiLoaderHtml("global");
+        overlay.classList.add("is-active");
+        overlay.setAttribute("aria-hidden", "false");
+      }
+    }, 80);
+  }
+}
+
+export function stopGlobalLoading() {
+  globalLoadingCount = Math.max(0, globalLoadingCount - 1);
+  if (globalLoadingCount === 0) {
+    clearTimeout(globalLoadingTimer);
+    globalLoadingTimer = null;
+    clearTimeout(globalLoadingTimeoutRecovery);
+    globalLoadingTimeoutRecovery = null;
+    const overlay = $("#domi-global-overlay");
+    if (overlay) {
+      overlay.classList.remove("is-active");
+      overlay.setAttribute("aria-hidden", "true");
+      setTimeout(() => {
+        if (globalLoadingCount === 0) overlay.innerHTML = "";
+      }, 260);
+    }
+  }
+}
+
+export function forceStopAllLoading() {
+  globalLoadingCount = 0;
+  clearTimeout(globalLoadingTimer);
+  globalLoadingTimer = null;
+  clearTimeout(globalLoadingTimeoutRecovery);
+  globalLoadingTimeoutRecovery = null;
+  const overlay = $("#domi-global-overlay");
+  if (overlay) {
+    overlay.classList.remove("is-active");
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.innerHTML = "";
+  }
+  const l = $("#global-loader");
+  if (l) {
+    l.className = "";
+    l.style.width = "0%";
+  }
+}
+
+window.__domiLoaderHtml = domiLoaderHtml;
+window.startGlobalLoading = startGlobalLoading;
+window.stopGlobalLoading = stopGlobalLoading;
+window.forceStopAllLoading = forceStopAllLoading;
+
+let loadingTimer;
+function startLoading() {
+  clearTimeout(loadingTimer);
+  const l = $("#global-loader");
+  if (l) {
+    l.style.opacity = "1";
+    l.className = "is-loading";
+  }
+}
+
+function stopLoading() {
+  stopGlobalLoading();
+  const l = $("#global-loader");
+  if (l) {
+    l.className = "is-done";
+    loadingTimer = setTimeout(() => {
+      l.className = "";
+      l.style.width = "0%";
+    }, 350);
+  }
+}
+
+const brandLogoHtml = () => `
+  <div class="brand-logo-emblem" aria-hidden="true">
+    <img src="/domi-app-icon.png" alt="" class="brand-logo-image">
+  </div>
+  <span class="brand-text">Dorm<span class="brand-accent">Path</span></span>
+`;
+
+// 1. Standalone Authentication Layout (FIXED VIEWPORT)
 function authLayout(content) {
   return `
     <div class="auth-page">
       <header class="auth-header">
-        <a href="#/home" class="auth-brand">
-          <span class="brand-icon">${icon("house")}</span>
-          Dorm<span>Path</span>
+        <a href="#/home" class="auth-brand" title="DormPath — Tuguegarao">
+          ${brandLogoHtml()}
         </a>
         <a href="#/home" class="auth-back-link">
           ${icon("arrow-left")} <span>Back to explore</span>
         </a>
       </header>
-      <main class="auth-container">
+      <main id="main" class="auth-container">
         ${content}
       </main>
     </div>
@@ -255,28 +402,27 @@ function authLayout(content) {
 
 // 2. Public Landing Layout (Clean top navbar, full width, NO sidebar)
 function publicLayout(content) {
+  const current = location.hash.replace(/^#\/?/, "").split("/")[0] || "home";
+
   return `
     <div class="public-layout">
       <header class="public-navbar">
         <div class="public-navbar-inner">
-          <a href="#/home" class="auth-brand">
-            <span class="brand-icon">${icon("house")}</span>
-            Dorm<span>Path</span>
+          <a href="#/home" class="auth-brand" title="DormPath — Tuguegarao">
+            ${brandLogoHtml()}
           </a>
-          <nav class="nav-links">
-            <a href="#/search" class="nav-link">Explore Rooms</a>
-            <a href="#/map" class="nav-link">${icon("map")} 3D Map View</a>
-            <a href="#/domi" class="nav-link">${icon("sparkles")} Ask DOMI</a>
-            <a href="#/about" class="nav-link">How It Works</a>
-          </nav>
+
           <div class="nav-actions">
-            <button class="button text-button" data-action="theme" aria-label="Toggle appearance">
+            ${location.hash && !["#/", "#/home"].includes(location.hash) ? `<a href="#/home" class="button outline small">${icon("arrow-left")} Back to home</a>` : ""}
+            <button class="button text-button" data-action="theme" aria-label="Toggle appearance" title="Toggle Dark/Light Mode">
               ${icon("sun-moon")}
+            </button>
+            <button type="button" class="button outline small install-apk-btn" data-action="install-pwa" title="Install DormPath on your phone or tablet">
+              ${icon("download")} <span>Install App</span>
             </button>
             ${
               api.currentUser
-                ? `<a href="#/dashboard" class="button outline small">${icon("layout-dashboard")} Dashboard</a>
-                   <a href="#/profile" class="button primary small" style="display:inline-flex; align-items:center; gap:8px;">
+                ? `<a href="#/profile" class="button primary small" style="display:inline-flex; align-items:center; gap:8px;">
                      <span style="width:20px; height:20px; border-radius:50%; background:rgba(255,255,255,0.25); display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; overflow:hidden;">
                        ${
                          api.currentUser?.photoURL || api.profile?.photoURL
@@ -286,8 +432,7 @@ function publicLayout(content) {
                      </span>
                      <span>${e(api.profile?.name || "Account")}</span>
                    </a>`
-                : `<a href="#/login" class="button text-button">Log in</a>
-                   <a href="#/register" class="button primary small">Get started ${icon("arrow-right")}</a>`
+                : `<a href="#/login" class="button primary small">Log In ${icon("arrow-right")}</a>`
             }
           </div>
         </div>
@@ -299,11 +444,10 @@ function publicLayout(content) {
         <div class="footer-inner">
           <div class="footer-col">
             <a href="#/home" class="auth-brand" style="margin-bottom:14px;">
-              <span class="brand-icon">${icon("house")}</span>
-              Dorm<span>Path</span>
+              ${brandLogoHtml()}
             </a>
             <p style="font-size:0.875rem; max-width:320px; line-height:1.6;">
-              Finding your space in Tuguegarao City made simple, honest, and forever free for students.
+              Finding your space in Tuguegarao City made simple, honest, and forever free for all room searchers.
             </p>
           </div>
           <div class="footer-col">
@@ -312,15 +456,15 @@ function publicLayout(content) {
               <li><a href="#/search">Boarding Houses</a></li>
               <li><a href="#/search">Dormitories</a></li>
               <li><a href="#/search">Apartments</a></li>
-              <li><a href="#/map">3D City Map</a></li>
+              <li><a href="#/map">Area Map</a></li>
             </ul>
           </div>
           <div class="footer-col">
-            <h4>Students</h4>
+            <h4>Explore Housing</h4>
             <ul>
               <li><a href="#/search">Browse Available Rooms</a></li>
-              <li><a href="#/about">Student Promise (₱0 Fees)</a></li>
-              <li><a href="#/login">Student Login</a></li>
+              <li><a href="#/about">Fair Housing Promise (₱0 Fees)</a></li>
+              <li><a href="#/login">Tenant Log In</a></li>
             </ul>
           </div>
           <div class="footer-col">
@@ -329,54 +473,56 @@ function publicLayout(content) {
               <li><a href="#/privacy">Data Privacy (RA 10173)</a></li>
               <li><a href="#/terms">Terms of Service</a></li>
               <li><a href="#/register">List Your Property</a></li>
-              <li><a href="#/domi">DOMI AI Assistant</a></li>
+              <li><a href="#/domi">DOMI Housing Assistant</a></li>
             </ul>
           </div>
         </div>
         <div class="footer-bottom">
           <span>© ${new Date().getFullYear()} DormPath. Tuguegarao City, Cagayan, Philippines.</span>
-          <span>Zero student booking fees · Verified property owners · RA 10173 Compliant</span>
+          <span>Zero booking fees for tenants · Verified property owners</span>
         </div>
       </footer>
     </div>
   `;
 }
 
-// 3. Authenticated Workspace / App Shell (Sidebar + Topbar + Content)
+// 3. Authenticated Workspace / App Shell (3D Tactile Sidebar + Workspace)
 function appLayout(content) {
   const current = location.hash.replace(/^#\/?/, "").split("/")[0] || "dashboard";
-  const unreadMessages = state.conversations?.filter(
-    (c) =>
-      c.lastSender !== api.currentUser?.uid &&
-      c.updatedAt?.seconds > (c.readAt?.[api.currentUser?.uid]?.seconds || 0),
-  ).length || 0;
+  const unreadMessages =
+    state.conversations?.filter(
+      (c) =>
+        c.lastSender !== api.currentUser?.uid &&
+        c.updatedAt?.seconds > (c.readAt?.[api.currentUser?.uid]?.seconds || 0),
+    ).length || 0;
+
+  const isLandlord = api.profile?.role === "landlord";
+  const roleLabel = isLandlord ? "Landlord / Owner" : "Tenant";
 
   return `
     <div class="app-shell">
       <aside class="app-sidebar">
         <div class="sidebar-header">
-          <a href="#/home" class="auth-brand">
-            <span class="brand-icon">${icon("house")}</span>
-            Dorm<span>Path</span>
+          <a href="#/dashboard" class="auth-brand" title="DormPath dashboard">
+            ${brandLogoHtml()}
           </a>
         </div>
 
         ${
-          api.profile?.role === "landlord"
+          isLandlord
             ? `
           <div class="sidebar-nav-group">
             <div class="sidebar-caption">LANDLORD PORTAL</div>
             ${navItem("dashboard", "Dashboard", "layout-dashboard")}
             ${navItem("properties", "My Properties", "building-2")}
-            ${navItem("add-property", "Add Property", "plus-circle")}
             <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
               <div class="sidebar-link-left">
                 ${icon("messages-square")}
-                <span>Student Inquiries</span>
+                <span>Tenant Inquiries</span>
               </div>
               ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
             </a>
-            ${navItem("notifications", "Inquiry Alerts", "bell")}
+
             ${navItem("profile", "Profile & Settings", "user")}
             ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
           </div>
@@ -384,20 +530,13 @@ function appLayout(content) {
           <div class="sidebar-nav-group">
             <div class="sidebar-caption">DISCOVER & MARKET</div>
             ${navItem("search", "Market Listings", "search")}
-            ${navItem("map", "3D Tuguegarao Map", "map")}
-            ${navItem("domi", "Ask DOMI AI", "sparkles")}
+            ${navItem("map", "Tuguegarao Map", "map")}
+            ${navItem("domi", "Ask DOMI", "bot")}
           </div>
         `
             : `
           <div class="sidebar-nav-group">
-            <div class="sidebar-caption">FIND HOUSING</div>
-            ${navItem("search", "Explore Rooms", "search")}
-            ${navItem("map", "3D Map View", "map")}
-            ${navItem("domi", "Ask DOMI AI", "sparkles")}
-          </div>
-
-          <div class="sidebar-nav-group">
-            <div class="sidebar-caption">STUDENT WORKSPACE</div>
+            <div class="sidebar-caption">TENANT PORTAL</div>
             ${navItem("dashboard", "Dashboard", "layout-dashboard")}
             ${navItem("favorites", "Saved Places", "heart")}
             <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
@@ -407,9 +546,16 @@ function appLayout(content) {
               </div>
               ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
             </a>
-            ${navItem("notifications", "Notifications", "bell")}
+
             ${navItem("profile", "Profile & Settings", "user")}
             ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
+          </div>
+
+          <div class="sidebar-nav-group">
+            <div class="sidebar-caption">FIND HOUSING</div>
+            ${navItem("search", "Explore Rooms", "search")}
+            ${navItem("map", "Map Explorer", "map")}
+            ${navItem("domi", "Ask DOMI", "bot")}
           </div>
         `
         }
@@ -425,19 +571,19 @@ function appLayout(content) {
             </div>
             <div style="flex:1; min-width:0;">
               <strong style="display:block; font-size:0.8125rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                ${e(api.profile?.name || "Neighbor")}
+                ${e(api.profile?.name || "User")}
               </strong>
               <span style="font-size:0.6875rem; color:var(--text-muted); text-transform:capitalize;">
-                ${e(api.profile?.role || "Student")} · Settings ⚙️
+                ${roleLabel}
               </span>
             </div>
           </a>
-          <div style="display:flex; gap:6px; margin-top:8px;">
-            <button class="button outline small" style="flex:1;" data-action="theme" title="Toggle theme">
-              ${icon("sun-moon")} Appearance
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button type="button" class="button outline small" data-action="theme" style="flex:1; justify-content:center; padding:6px 10px; font-size:0.75rem; border-radius:var(--radius-md);" title="Toggle Dark/Light Mode">
+              ${icon("sun-moon")} <span>Theme</span>
             </button>
-            <button class="button outline small" style="color:var(--danger);" data-action="logout" title="Sign out">
-              ${icon("log-out")}
+            <button type="button" class="button outline small" data-action="logout" style="flex:1; justify-content:center; padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:rgba(239,68,68,0.35); border-radius:var(--radius-md);" title="Sign Out">
+              ${icon("log-out")} <span>Log Out</span>
             </button>
           </div>
         </div>
@@ -446,21 +592,22 @@ function appLayout(content) {
       <div class="app-workspace">
         <header class="app-topbar">
           <div class="app-topbar-left">
-            <div class="badge badge-outline" style="gap:6px;">
-              ${icon("map-pin")} <span>Tuguegarao City, PH</span>
+            <div class="badge badge-outline" style="gap:6px; font-weight:600;">
+              ${icon("map-pin")} <span>Tuguegarao & Peñablanca</span>
             </div>
+            <button type="button" class="button outline small" data-action="open-notifications" aria-label="Notifications">${icon("bell")} Alerts</button>
           </div>
-          <div style="display:flex; align-items:center; gap:12px;">
-            <a href="#/domi" class="button text-button">
-              ${icon("sparkles")} Ask DOMI
-            </a>
-            ${
-              api.profile?.role === "landlord"
-                ? `<a href="#/add-property" class="button primary small">${icon("plus")} Add Property</a>`
-                : ""
-            }
+          <div class="app-topbar-right" style="display:flex; align-items:center; gap:8px;">
+            <button type="button" class="button text-button" data-action="theme" aria-label="Toggle appearance" title="Toggle Dark/Light Mode">
+              ${icon("sun-moon")}
+            </button>
+            <button type="button" class="button outline small" data-action="logout" title="Log Out" style="color:var(--danger); border-color:rgba(239,68,68,0.3); font-weight:600; gap:6px;">
+              ${icon("log-out")} <span class="hide-mobile">Log Out</span>
+            </button>
           </div>
         </header>
+
+        ${isLandlord && !api.profile?.verified ? `<div class="connection-banner" style="background:#fff7ed; color:#9a3412; border-color:#fdba74;">Landlord publishing is locked until an administrator approves every permit. <a href="#/profile" style="font-weight:800; color:inherit;">Review or complete your permit application</a>.</div>` : ""}
 
         ${
           !navigator.onLine
@@ -474,14 +621,17 @@ function appLayout(content) {
       </div>
 
       <nav class="mobile-nav">
-        <a href="#/home" class="${current === "home" ? "active" : ""}">
-          ${icon("compass")} <span>Home</span>
+        <a href="#/dashboard" class="${current === "dashboard" ? "active" : ""}">
+          ${icon("layout-dashboard")} <span>Dashboard</span>
         </a>
         <a href="#/search" class="${current === "search" ? "active" : ""}">
-          ${icon("search")} <span>Search</span>
+          ${icon("search")} <span>Explore</span>
+        </a>
+        <a href="#/map" class="${current === "map" ? "active" : ""}">
+          ${icon("map")} <span>Area Map</span>
         </a>
         <a href="#/domi" class="${current === "domi" ? "active" : ""}">
-          ${icon("sparkles")} <span>DOMI AI</span>
+          ${icon("bot")} <span>DOMI</span>
         </a>
         <a href="#/favorites" class="${current === "favorites" ? "active" : ""}">
           ${icon("heart")} <span>Saved</span>
@@ -489,6 +639,9 @@ function appLayout(content) {
         <a href="#/messages" class="${current === "messages" ? "active" : ""}">
           ${icon("messages-square")} <span>Chat</span>
         </a>
+        <button type="button" class="mobile-menu-btn" data-action="toggle-mobile-drawer" aria-label="More options" style="background:transparent; border:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; color:var(--text-secondary); cursor:pointer; font-size:0.6875rem; font-weight:600;">
+          ${icon("menu")} <span>More</span>
+        </button>
       </nav>
     </div>
   `;
@@ -507,11 +660,11 @@ function authPage(register = false) {
           <div class="overline" style="color:#60a5fa;">TUGUEGARAO HOUSING NETWORK</div>
           <h2>Find your space.<br>Feel at home.</h2>
           <p>
-            Join thousands of students and verified landlords connecting directly across Tuguegarao City.
+            Connect directly with verified room owners and renters across Tuguegarao City.
           </p>
 
           <div class="auth-mascot-card">
-            <img src="/domi.png" alt="DOMI AI Mascot">
+            <img src="/domi.png" alt="DOMI Mascot">
             <div>
               <strong>DOMI is here to help!</strong>
               <span>Get instant answers on room budgets, move-in deposits, and amenities.</span>
@@ -521,22 +674,22 @@ function authPage(register = false) {
 
         <div class="auth-trust-list">
           <div class="auth-trust-item">
-            ${icon("shield-check")} <span>Admin-verified property owners</span>
+            ${icon("shield-check")} <span>Verified property owners</span>
           </div>
           <div class="auth-trust-item">
-            ${icon("message-circle")} <span>Direct student-to-owner private messaging</span>
+            ${icon("message-circle")} <span>Direct private messaging between renters and owners</span>
           </div>
           <div class="auth-trust-item">
-            ${icon("sparkles")} <span>Always 100% free for students (₱0 booking fees)</span>
+            ${icon("badge-check")} <span>Always 100% free for renters (₱0 booking fees)</span>
           </div>
         </div>
       </div>
 
-      <div class="auth-form-panel">
+      <div class="auth-form-panel auth-refined">
         <div class="auth-form-header">
           <h2>${register ? "Create your account" : "Welcome back"}</h2>
           <p class="text-secondary">
-            ${register ? "Sign up in 30 seconds to start discovering rooms." : "Sign in to continue to your DormPath dashboard."}
+            ${register ? "Find a place that feels like home." : "Your next home is waiting. Pick up where you left off."}
           </p>
         </div>
 
@@ -559,36 +712,36 @@ function authPage(register = false) {
             register
               ? `
               <div class="role-cards-container">
-                <div class="role-card ${state.selectedRole === "student" ? "selected" : ""}" data-role-select="student">
+                <div class="role-card ${state.selectedRole !== "landlord" ? "selected" : ""}" data-role-select="tenant">
                   <div class="role-card-header">
-                    <strong>🎓 Student / Renter</strong>
-                    <div class="role-check">${state.selectedRole === "student" ? icon("check") : ""}</div>
+                    <strong style="display:flex; align-items:center; gap:6px;">${icon("user")} Tenant</strong>
+                    <div class="role-check">${state.selectedRole !== "landlord" ? icon("check") : ""}</div>
                   </div>
-                  <p>Browse spaces, message owners, and post room requests.</p>
+                  <p>Browse spaces, message owners directly, and save favorites.</p>
                 </div>
                 <div class="role-card ${state.selectedRole === "landlord" ? "selected" : ""}" data-role-select="landlord">
                   <div class="role-card-header">
-                    <strong>🏠 Property Owner</strong>
+                    <strong style="display:flex; align-items:center; gap:6px;">${icon("building-2")} Property Owner</strong>
                     <div class="role-check">${state.selectedRole === "landlord" ? icon("check") : ""}</div>
                   </div>
-                  <p>List rooms and receive verified inquiries (verification required).</p>
+                  <p>List rooms, manage vacancies, and connect directly with tenants.</p>
                 </div>
               </div>
               <input type="hidden" name="role" id="auth-role-input" value="${state.selectedRole}">
-              
+
               <label>Full name
-                <input name="name" required maxlength="80" autocomplete="name" placeholder="Maria Santos">
+                <input name="name" required maxlength="80" autocomplete="name" placeholder="Juan dela Cruz">
               </label>
             `
               : ""
           }
 
           <label>Email address
-            <input name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+            <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" value="${register ? "" : e(rememberedLogin().email || "")}">
           </label>
 
           <label class="password-field">Password
-            <input name="password" id="auth-password" type="password" required minlength="8" autocomplete="${register ? "new-password" : "current-password"}" placeholder="At least 8 characters">
+            <input name="password" id="auth-password" type="password" required minlength="8" autocomplete="${register ? "new-password" : "current-password"}" placeholder="${register ? "Create a strong password" : "Enter your password"}">
             <button type="button" class="password-toggle-btn" data-action="toggle-password" aria-label="Toggle password visibility">
               ${icon("eye")}
             </button>
@@ -596,15 +749,27 @@ function authPage(register = false) {
 
           ${
             !register
-              ? `<div style="display:flex; justify-content:flex-end; margin:-6px 0 16px;">
+              ? `<div class="auth-options"><label class="check"><input name="remember" type="checkbox" ${rememberedLogin().remember ? "checked" : ""}> Remember me</label>
                   <button type="button" class="button text-button small" data-action="reset-password">Forgot password?</button>
                  </div>`
               : ""
           }
 
-          <button class="button primary full large" type="submit" style="margin-top:8px;">
-            ${register ? "Create Account" : "Sign In"} ${icon("arrow-right")}
+          ${register ? `<label class="check"><input type="checkbox" name="consent" required> I have read the <button type="button" class="legal-link" data-action="privacy-dialog">privacy policy</button> and agree to the <button type="button" class="legal-link" data-action="terms-dialog">terms</button>.</label>` : ""}<button class="button primary full large" type="submit" style="margin-top:8px;">
+            ${register ? "Create Account" : "Log In"} ${icon("arrow-right")}
           </button>
+
+          ${!register ? `<p id="verification-help" class="auth-verification-help" hidden>Email not verified. <button type="button" data-action="resend-verification">Resend verification</button></p>` : ""}
+          <div class="auth-badges-row">
+            <div class="auth-captcha-badge" role="status" aria-live="polite">
+              <span class="captcha-dot"></span>
+              <span id="captcha-status">${api.appCheck ? "reCAPTCHA · automatic verification at sign-in" : "Bot protection is not configured yet"}</span>
+            </div>
+            <div class="auth-security-badge">
+              ${icon("shield-check")}
+              <span>Your privacy matters. <button type="button" class="legal-link" data-action="privacy-dialog">Privacy policy</button> <span aria-hidden="true">·</span> <button type="button" class="legal-link" data-action="terms-dialog">Terms of use</button></span>
+            </div>
+          </div>
 
           <p class="auth-footer-text">
             ${
@@ -638,51 +803,22 @@ function home() {
           Discover verified boarding houses, dormitories, and apartments near your university. Your next chapter starts with the right room.
         </p>
 
-        <form id="search-form" class="hero-search-card">
-          <div class="hero-search-field">
-            <span>Location</span>
-            <input name="q" placeholder="Barangay, school, or landmark..." value="${e(state.filters.q || "")}">
-          </div>
-          <div class="hero-search-divider"></div>
-          <div class="hero-search-field">
-            <span>Monthly Budget</span>
-            <select name="budget">
-              <option value="">Any budget</option>
-              <option value="2000" ${Number(state.filters.budget) === 2000 ? "selected" : ""}>Up to ₱2,000</option>
-              <option value="3500" ${Number(state.filters.budget) === 3500 ? "selected" : ""}>Up to ₱3,500</option>
-              <option value="5000" ${Number(state.filters.budget) === 5000 ? "selected" : ""}>Up to ₱5,000</option>
-              <option value="8000" ${Number(state.filters.budget) === 8000 ? "selected" : ""}>Up to ₱8,000</option>
-            </select>
-          </div>
-          <div class="hero-search-divider"></div>
-          <div class="hero-search-field">
-            <span>Space Type</span>
-            <select name="type">
-              <option value="">All space types</option>
-              ${TYPES.map((t) => `<option value="${t}" ${state.filters.type === t ? "selected" : ""}>${t}</option>`).join("")}
-            </select>
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button class="button primary" type="submit" style="white-space:nowrap;">
-              ${icon("search")} <span>Find Rooms</span>
-            </button>
-            <a href="#/map" class="button outline" style="height:48px; border-radius:var(--radius-full); font-weight:700; white-space:nowrap; gap:6px; display:inline-flex; align-items:center;">
-              ${icon("map")} <span>3D Map</span>
-            </a>
-          </div>
-        </form>
-
-        <div class="hero-campus-chips">
-          <span>NEAR CAMPUS:</span>
-          ${["University of Saint Louis", "CSU Carig", "CSU Andrews", "St. Paul University"]
-            .map((s) => `<button type="button" class="campus-chip" data-school="${e(s)}">${s}</button>`)
-            .join("")}
+        <div class="hero-cta-group" style="display:flex; gap:14px; margin-top:24px; flex-wrap:wrap; align-items:center;">
+          <a href="#/search" class="button primary large" style="font-weight:700; height:50px; padding:0 26px; border-radius:var(--radius-full); box-shadow:0 6px 20px -3px rgba(37,99,235,0.4); display:inline-flex; align-items:center; gap:8px;">
+            ${icon("search")} <span>Explore Available Rooms</span>
+          </a>
+          <a href="#/map" class="button outline large" style="font-weight:700; height:50px; padding:0 26px; border-radius:var(--radius-full); background:var(--bg-card); border-color:var(--border); display:inline-flex; align-items:center; gap:8px;">
+            ${icon("map")} <span>Area Map</span>
+          </a>
+          <button type="button" class="button outline large" data-action="install-pwa" style="font-weight:700; height:50px; padding:0 22px; border-radius:var(--radius-full); background:var(--bg-card); border-color:var(--primary); color:var(--primary); display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+            ${icon("download")} <span>Install DormPath</span>
+          </button>
         </div>
       </div>
 
       <div class="hero-graphic">
         <div class="hero-graphic-bg"></div>
-        <img src="/domi.png" alt="DOMI AI Mascot" class="hero-mascot-img">
+        <img src="/domi.png" alt="DOMI Mascot" class="hero-mascot-img">
         <div class="hero-floating-badge badge-top">
           <span style="font-size:1.25rem;">🏠</span>
           <div>
@@ -693,7 +829,7 @@ function home() {
         <div class="hero-floating-badge badge-bottom">
           <span style="font-size:1.25rem;">₱0</span>
           <div>
-            <strong>100% Free for Students</strong>
+            <strong>100% Free for Tenants</strong>
             <span>Direct contact & chat</span>
           </div>
         </div>
@@ -713,70 +849,25 @@ function home() {
           <div class="metric-icon-box">${icon("shield-check")}</div>
           <div>
             <strong>Verified Landlords</strong>
-            <span>Identity confirmed before publishing</span>
+            <span>Owner verification required to publish</span>
           </div>
         </div>
         <div class="metric-card">
           <div class="metric-icon-box">${icon("clock")}</div>
           <div>
-            <strong>Live Vacancies</strong>
+            <strong>Reported Vacancies</strong>
             <span>Reported directly by property owners</span>
           </div>
         </div>
         <div class="metric-card">
           <div class="metric-icon-box">${icon("sparkles")}</div>
           <div>
-            <strong>DOMI AI Helper</strong>
+            <strong>DOMI Housing Helper</strong>
             <span>Smart budget advice & message drafts</span>
           </div>
         </div>
       </div>
     </section>
-
-    <!-- 3D Map Showcase Banner -->
-    <section class="landing-section" style="padding-top:0;">
-      <div class="map3d-teaser-banner">
-        <div class="map3d-teaser-content">
-          <div class="badge" style="background:rgba(255,255,255,0.2); color:#ffffff; width:fit-content; margin-bottom:12px; font-weight:700;">
-            ${icon("map")} Real-Estate 3D Experience
-          </div>
-          <h2>Tour Tuguegarao Boarding Houses in Full 3D</h2>
-          <p>Tilt, rotate, and explore campus neighborhoods in WebGL. See real building distances to SPUP, USL, CSU Carig, and CSU Andrews before you book an ocular inspection.</p>
-          <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
-            <a href="#/map" class="button primary large" style="background:#ffffff; color:var(--primary); font-weight:800; border:none; box-shadow:0 4px 14px rgba(0,0,0,0.2);">
-              ${icon("navigation")} Open 3D Map Explorer
-            </a>
-            <a href="#/search" class="button outline large" style="color:#ffffff; border-color:rgba(255,255,255,0.4);">
-              Browse Rooms List
-            </a>
-          </div>
-        </div>
-        <div class="map3d-teaser-visual">
-          <div class="map3d-teaser-card card-1">
-            <span class="map3d-pill" style="background:#2855e8; color:#fff;">₱2,500/mo <span class="map3d-dot"></span></span>
-            <div style="font-size:0.75rem; font-weight:700; margin-top:6px;">St. Paul Area Dormitory</div>
-            <div style="font-size:0.65rem; color:var(--text-muted);">2 min walk to SPUP · Available</div>
-          </div>
-          <div class="map3d-teaser-card card-2">
-            <span class="map3d-pill">₱3,200/mo <span class="map3d-dot"></span></span>
-            <div style="font-size:0.75rem; font-weight:700; margin-top:6px;">USL Student Studio</div>
-            <div style="font-size:0.65rem; color:var(--text-muted);">Balzain, Tuguegarao · Available</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="landing-section">
-      <div class="section-head">
-        <div class="section-head-text">
-          <div class="overline">AVAILABLE SPACES</div>
-          <h2>Featured places to call home</h2>
-        </div>
-        <a href="#/search" class="button outline small">Explore all ${icon("arrow-right")}</a>
-      </div>
-      ${listingArea(state.properties.slice(0, 6))}
-    </section>
-
     <section class="landing-section" style="background:var(--bg-subtle); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
       <div class="section-head">
         <div class="section-head-text">
@@ -794,13 +885,13 @@ function home() {
         ]
           .map(
             ([type, iconName, desc]) => `
-          <button type="button" class="category-card" data-type="${type}">
+          <div class="category-card category-card-static">
             <div class="category-icon">${icon(iconName)}</div>
             <div>
               <strong>${type}</strong>
               <span>${desc}</span>
             </div>
-          </button>
+          </div>
         `,
           )
           .join("")}
@@ -832,29 +923,14 @@ function home() {
     </section>
 
     <section class="landing-section">
-      <div class="domi-spotlight-card">
-        <div class="domi-spotlight-avatar">
-          <img src="/domi.png" alt="DOMI AI">
-        </div>
-        <div class="domi-spotlight-text">
-          <h2>Meet DOMI, your smart housing companion</h2>
-          <p>Not sure where to start? Ask DOMI to recommend rooms matching your budget, explain typical advance deposits in Tuguegarao, or help you draft a friendly inquiry message.</p>
-        </div>
-        <button class="button primary large" data-action="domi" style="background:white; color:var(--navy);">
-          ${icon("sparkles")} Ask DOMI
-        </button>
-      </div>
-    </section>
-
-    <section class="landing-section">
       <div class="section-head" style="text-align:center; display:block; margin-bottom:40px;">
         <div class="overline">FREQUENTLY ASKED QUESTIONS</div>
         <h2>Everything you need to know</h2>
       </div>
       <div class="faq-grid">
         <details class="faq-item">
-          <summary>Is DormPath really 100% free for students? ${icon("chevron-down")}</summary>
-          <p>Yes! Students can browse listings, save favorites, post room requests, and message property owners without paying any subscription or booking commission fees.</p>
+          <summary>Is DormPath really 100% free for tenants? ${icon("chevron-down")}</summary>
+          <p>Yes! Tenants can browse listings, save favorites, post room requests, and message property owners without paying any subscription or booking commission fees.</p>
         </details>
         <details class="faq-item">
           <summary>How are property owners verified? ${icon("chevron-down")}</summary>
@@ -895,7 +971,7 @@ function card(p) {
       <div class="property-card-body">
         <div class="card-header-row">
           <span class="card-room-type">${e(p.roomTypes?.[0] || "Room")}</span>
-          <span class="card-verified-tag">${icon("shield-check")} Verified</span>
+          <span class="card-verified-tag">${icon("building-2")} Owner listing</span>
         </div>
 
         <a href="#/property/${e(p.id)}">
@@ -936,7 +1012,7 @@ function listingArea(items) {
     return empty(
       state.error ? "Connection notice" : "No properties found",
       state.error || "No published spaces match your current search filter. Try adjusting your budget or area.",
-      `<a class="button outline" href="#/map">Explore 3D City Map ${icon("arrow-right")}</a>`,
+      `<a class="button outline" href="#/map">Explore Area Map ${icon("arrow-right")}</a>`,
     );
   }
   return `<div class="property-grid">${items.map(card).join("")}</div>`;
@@ -975,9 +1051,7 @@ async function details(id) {
           <button class="button outline ${saved ? "saved" : ""}" data-save="${e(p.id)}">
             ${icon("heart")} <span>${saved ? "Saved" : "Save"}</span>
           </button>
-          <a class="button outline" href="https://www.openstreetmap.org/directions?to=${Number(p.lat)},${Number(p.lng)}" target="_blank" rel="noopener">
-            ${icon("navigation")} Directions
-          </a>
+${getPropertyCoordinates(p) ? `<a class="button outline" href="https://www.google.com/maps/dir/?api=1&destination=${Number(p.lat)},${Number(p.lng)}" target="_blank" rel="noopener noreferrer">${icon("navigation")} Directions</a>` : `<span class="badge">Ask owner for exact location</span>`}
         </div>
       </div>
 
@@ -1014,6 +1088,26 @@ async function details(id) {
 
             <h3 style="margin-top:24px; margin-bottom:8px;">House Rules</h3>
             <p style="white-space:pre-wrap;">${e(p.rules)}</p>
+
+            ${
+              p.video
+                ? `
+              <div style="margin-top:24px; padding:16px; border-radius:var(--radius-lg); background:var(--bg-subtle); border:1px solid var(--border);">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                  <span class="badge" style="background:#ef4444; color:#fff; font-weight:700;">▶ Video Tour</span>
+                  <strong style="font-size:0.9375rem;">Walkthrough Video</strong>
+                </div>
+                <div style="border-radius:var(--radius-md); overflow:hidden; background:#000;">
+                  ${
+                    p.video.includes("youtube.com") || p.video.includes("youtu.be")
+                      ? `<iframe src="${p.video.replace("watch?v=", "embed/").replace("youtu.be/", "www.youtube.com/embed/")}" style="width:100%; aspect-ratio:16/9; border:none;" allowfullscreen></iframe>`
+                      : `<video src="${e(p.video)}" controls style="width:100%; max-height:400px; display:block;" poster="${e(p.photos?.[0] || "")}"></video>`
+                  }
+                </div>
+              </div>
+            `
+                : ""
+            }
           </div>
 
           <div class="detail-section">
@@ -1066,8 +1160,8 @@ async function details(id) {
             <button class="button primary full large" data-chat-property="${e(p.id)}">
               ${icon("message-circle")} Message Landlord Free
             </button>
-            <button class="button text-button small" data-report="${e(p.id)}" style="color:var(--text-muted);">
-              ${icon("flag")} Report listing
+            <button class="button text-button small" data-report="${e(p.id)}" style="color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              ${icon("flag")} Report Landlord or Listing
             </button>
           </div>
         </aside>
@@ -1092,7 +1186,7 @@ async function dashboard() {
           <div>
             <div class="overline">LANDLORD COMMAND CENTER</div>
             <h2>Welcome back, ${e(api.profile?.name || "Landlord")} 👋</h2>
-            <p>Manage your boarding houses, live vacancies, and direct student inquiries.</p>
+            <p>Manage listings, update available spaces, and respond to tenant inquiries.</p>
           </div>
           <div style="display:flex; gap:10px;">
             <a href="#/add-property" class="button primary">
@@ -1113,7 +1207,7 @@ async function dashboard() {
             <div class="metric-icon-box" style="background:rgba(16,185,129,0.1); color:var(--success);">${icon("bed-double")}</div>
             <div>
               <strong>${totalAvailable}</strong>
-              <span>Live Available Beds</span>
+              <span>Reported Available Beds</span>
             </div>
           </div>
           <div class="metric-card" style="background:var(--bg-surface); padding:20px; border-radius:var(--radius-xl); border:1px solid var(--border);">
@@ -1127,7 +1221,7 @@ async function dashboard() {
             <div class="metric-icon-box" style="background:rgba(37,99,235,0.1); color:var(--primary);">${icon("messages-square")}</div>
             <div>
               <strong>${convs.length}</strong>
-              <span>Student Inquiries</span>
+              <span>Tenant Inquiries</span>
             </div>
           </div>
         </div>
@@ -1166,7 +1260,7 @@ async function dashboard() {
               <div style="font-size:2.5rem; margin-bottom:12px;">🏠</div>
               <h4>No Properties Listed Yet</h4>
               <p style="color:var(--text-secondary); max-width:440px; margin:8px auto 20px; font-size:0.875rem;">
-                Get your boarding house or apartment in front of hundreds of students in Tuguegarao City.
+                Share your boarding house or apartment with tenants in Tuguegarao City.
               </p>
               <a href="#/add-property" class="button primary">${icon("plus")} Add Your First Property</a>
             </div>
@@ -1177,13 +1271,13 @@ async function dashboard() {
     `;
   }
 
-  // Student Dashboard
+  // Tenant Dashboard
   const favs = await api.favorites();
   return `
     <div>
       <div style="margin-bottom:28px;">
-        <div class="overline">STUDENT HOUSING WORKSPACE</div>
-        <h2>Welcome back, ${e(api.profile?.name || "Student")} 👋</h2>
+        <div class="overline">TENANT HOUSING WORKSPACE</div>
+        <h2>Welcome back, ${e(api.profile?.name || "Tenant")} 👋</h2>
         <p>Track your saved boarding houses, landlord inquiries, and room requests.</p>
       </div>
 
@@ -1206,7 +1300,7 @@ async function dashboard() {
           <div class="metric-icon-box" style="background:rgba(16,185,129,0.1); color:var(--success);">${icon("shield-check")}</div>
           <div>
             <strong>₱0</strong>
-            <span>Student Platform Fees</span>
+            <span>Tenant Platform Fees</span>
           </div>
         </div>
       </div>
@@ -1218,11 +1312,27 @@ async function dashboard() {
             ${icon("search")} Explore Rooms ${icon("arrow-right")}
           </a>
           <a href="#/map" class="button outline">
-            ${icon("map")} 3D Tuguegarao Map
+            ${icon("map")} Tuguegarao Map
           </a>
           <a href="#/domi" class="button outline">
-            ${icon("sparkles")} Ask DOMI AI
+            ${icon("sparkles")} Ask DOMI
           </a>
+        </div>
+      </div>
+
+      <div class="detail-section" style="margin-top:24px; background:linear-gradient(135deg, rgba(239,68,68,0.04), rgba(245,158,11,0.04)); border:1px solid rgba(239,68,68,0.18); border-radius:var(--radius-xl); padding:20px 24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; font-weight:700; color:var(--text-main); font-size:1.0625rem;">
+              <span style="color:var(--danger);">${icon("flag")}</span> Tenant Safety & Landlord Accountability
+            </div>
+            <p style="font-size:0.875rem; color:var(--text-secondary); margin-top:4px; max-width:620px;">
+              Encountered a landlord who is rude, disrespectful, demanding unauthorized deposits, or not nice? Report them directly to DormPath administrators.
+            </p>
+          </div>
+          <button type="button" class="button outline small" data-action="report-landlord-direct" style="border-color:var(--danger); color:var(--danger); background:var(--bg-surface);">
+            ${icon("flag")} Report a Landlord
+          </button>
         </div>
       </div>
     </div>
@@ -1288,26 +1398,13 @@ function getPropertyCoordinates(p) {
   if (
     Number.isFinite(lat) &&
     Number.isFinite(lng) &&
-    lat > 17.4 && lat < 17.8 &&
-    lng > 121.5 && lng < 122.0
+    p.lat !== null && p.lat !== "" && p.lng !== null && p.lng !== "" &&
+    lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(lat === 0 && lng === 0)
   ) {
     return [lng, lat]; // MapLibre takes [lng, lat]
   }
 
-  const locStr = `${p.barangay || ""} ${p.location || ""} ${p.address || ""} ${p.title || ""}`.toLowerCase();
-  for (const [key, coords] of Object.entries(BARANGAY_COORDS)) {
-    if (locStr.includes(key)) {
-      const hash = (p.id || "").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-      const jitterLng = ((hash % 17) - 8) * 0.0003;
-      const jitterLat = (((hash * 3) % 17) - 8) * 0.0003;
-      return [coords[0] + jitterLng, coords[1] + jitterLat];
-    }
-  }
-
-  const hash = (p.id || "").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const jitterLng = ((hash % 23) - 11) * 0.0006;
-  const jitterLat = (((hash * 7) % 23) - 11) * 0.0006;
-  return [TUGUEGARAO_CENTER[0] + jitterLng, TUGUEGARAO_CENTER[1] + jitterLat];
+  return null; // Never invent a property location.
 }
 
 // Redesigned Search & 3D Map Page
@@ -1317,74 +1414,41 @@ function searchPage(mapView = false) {
   if (mapView) {
     return `
       <div class="map3d-shell">
-        <!-- Left Side: Listings & Quick Filters -->
-        <aside class="map3d-sidebar">
-          <div class="map3d-sidebar-header">
-            <div class="map3d-sidebar-title">
-              <div class="overline">3D EXPLORER · TUGUEGARAO</div>
-              <h2>3D Map Discovery</h2>
-              <p style="font-size:0.75rem; color:var(--text-muted); margin:0;">${items.length} verified propert${items.length === 1 ? "y" : "ies"} in Tuguegarao</p>
-            </div>
-            <a href="#/search" class="button outline small" title="Switch to Grid View">
-              ${icon("layout-grid")} Grid
-            </a>
-          </div>
-
-          <!-- Quick filter chips -->
-          <div class="map3d-filter-chips">
-            <button class="map3d-filter-chip ${!state.filters.type ? "active" : ""}" data-map-filter="">All Types</button>
-            ${TYPES.map((t) => `<button class="map3d-filter-chip ${state.filters.type === t ? "active" : ""}" data-map-filter="${t}">${t}</button>`).join("")}
-            <button class="map3d-filter-chip ${state.filters.vacant ? "active" : ""}" data-map-vacant="toggle">
-              ${state.filters.vacant ? "✓ Vacant Only" : "Vacant Only"}
-            </button>
-          </div>
-
-          <!-- Property cards feed -->
-          <div class="map3d-list">
-            ${
-              items.length
-                ? items
-                    .map(
-                      (p) => `
-                <div class="map3d-card" data-focus-property="${p.id}">
-                  <img src="${p.photos?.[0] || "/logo.png"}" class="map3d-card-thumb" alt="${e(p.title)}" onerror="this.src='/logo.png'">
-                  <div class="map3d-card-content">
-                    <div>
-                      <div class="map3d-card-title">${e(p.title)}</div>
-                      <div class="map3d-card-meta">${icon("map-pin")} ${e(p.barangay || p.location || "Tuguegarao")}</div>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-                      <span class="map3d-card-price">₱${Number(p.rent || 0).toLocaleString()}<span style="font-size:0.6875rem; font-weight:normal; color:var(--text-muted);">/mo</span></span>
-                      <span class="badge ${p.available > 0 ? "badge-success" : "badge-subtle"}" style="font-size:0.6875rem; padding:2px 6px;">
-                        ${p.available > 0 ? `${p.available} vacant` : "Full"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              `,
-                    )
-                    .join("")
-                : `<div style="padding:32px; text-align:center; color:var(--text-muted);">No properties match your filter in Tuguegarao.</div>`
-            }
-          </div>
-        </aside>
-
-        <!-- Right Side: WebGL 3D Map Viewport -->
         <main class="map3d-viewport">
           <div id="map"></div>
 
-          <!-- Polished Floating 3D Controls -->
+          <!-- Sleek Floating Navigation & Filter Header -->
+          <div class="map3d-floating-bar">
+            <div class="map3d-floating-info">
+              <div class="map3d-pill-brand">
+                <span style="font-size:1.1rem;">📍</span>
+                <strong>Tuguegarao & Peñablanca</strong>
+              </div>
+              <span class="map3d-pill-count">${items.length} place${items.length === 1 ? "" : "s"}</span>
+            </div>
+
+            <div class="map3d-floating-chips">
+              <button class="map3d-filter-chip ${!state.filters.type ? "active" : ""}" data-map-filter="">All Types</button>
+              ${TYPES.map((t) => `<button class="map3d-filter-chip ${state.filters.type === t ? "active" : ""}" data-map-filter="${t}">${t}</button>`).join("")}
+              <button class="map3d-filter-chip ${state.filters.vacant ? "active" : ""}" data-map-vacant="toggle">
+                ${state.filters.vacant ? "✓ Vacant" : "Vacant"}
+              </button>
+            </div>
+
+            <a href="#/search" class="button outline small" style="background:var(--bg-surface); white-space:nowrap; border-radius:var(--radius-full); font-weight:700; height:34px; padding:0 12px; display:inline-flex; align-items:center; gap:6px;">
+              ${icon("layout-grid")} <span>Grid View</span>
+            </a>
+          </div>
+
+          <!-- Polished Floating Map Controls -->
           <div class="map3d-controls-overlay">
-            <button class="map3d-ctrl-btn active" id="map3d-tilt-toggle" title="Toggle 3D Perspective / 2D View">
-              3D
-            </button>
-            <button class="map3d-ctrl-btn" id="map3d-compass-btn" title="Reset North & Pitch">
+            <button class="map3d-ctrl-btn" id="map3d-compass-btn" title="Reset North">
               ${icon("compass")}
             </button>
             <button class="map3d-ctrl-btn" id="map3d-locate-btn" title="Locate Me">
               ${icon("crosshair")}
             </button>
-            <button class="map3d-ctrl-btn" id="map3d-center-btn" title="Reset to Tuguegarao Center">
+            <button class="map3d-ctrl-btn" id="map3d-center-btn" title="Reset to Center">
               ${icon("house")}
             </button>
             <button class="map3d-ctrl-btn" id="map3d-zoom-in" title="Zoom In">
@@ -1395,30 +1459,36 @@ function searchPage(mapView = false) {
             </button>
           </div>
 
-          <!-- Apple Maps Style 3D Interaction Hint -->
+          <!-- Interactive Interaction Hint -->
           <div class="map3d-tip-pill">
-            ${icon("sparkles")} Right-click & drag or 2 fingers to pitch & rotate in 3D
+            ${icon("map-pin")} Interactive map of Tuguegarao City & Peñablanca boarding houses
           </div>
 
-          <!-- Mobile slide-up drawer / bottom sheet -->
-          <div class="map3d-bottom-sheet">
-            <div class="map3d-sheet-handle"></div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-              <strong style="font-size:0.875rem;">${items.length} Properties in Tuguegarao</strong>
-              <a href="#/search" class="button outline small" style="padding:4px 8px; font-size:0.75rem;">Grid View</a>
-            </div>
-            <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;">
-              ${items.slice(0, 15).map((p) => `
-                <div class="map3d-card" data-focus-property="${p.id}" style="min-width:250px; grid-template-columns:80px 1fr;">
-                  <img src="${p.photos?.[0] || "/logo.png"}" class="map3d-card-thumb" style="width:80px; height:70px;" alt="${e(p.title)}" onerror="this.src='/logo.png'">
-                  <div class="map3d-card-content">
-                    <div class="map3d-card-title">${e(p.title)}</div>
-                    <div class="map3d-card-price">₱${Number(p.rent || 0).toLocaleString()}</div>
+          ${
+            items.length
+              ? `
+            <!-- Floating bottom drawer for listings -->
+            <div class="map3d-bottom-sheet">
+              <div class="map3d-sheet-handle"></div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="font-size:0.875rem;">${items.length} Properties in Tuguegarao & Peñablanca</strong>
+                <a href="#/search" class="button outline small" style="padding:2px 8px; font-size:0.75rem;">View Full List</a>
+              </div>
+              <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;">
+                ${items.slice(0, 15).map((p) => `
+                  <div class="map3d-card" data-focus-property="${p.id}" style="min-width:240px; grid-template-columns:72px 1fr;">
+                    <img src="${e(p.photos?.[0] || "/domi.png")}" class="map3d-card-thumb" style="width:72px; height:64px;" alt="${e(p.title)}" onerror="this.onerror=null;this.src='/domi.png'">
+                    <div class="map3d-card-content">
+                      <div class="map3d-card-title">${e(p.title)}</div>
+                      <div class="map3d-card-price">₱${Number(p.minPrice || 0).toLocaleString()}</div>
+                    </div>
                   </div>
-                </div>
-              `).join("")}
+                `).join("")}
+              </div>
             </div>
-          </div>
+          `
+              : ""
+          }
         </main>
       </div>
     `;
@@ -1437,7 +1507,7 @@ function searchPage(mapView = false) {
             ${icon("layout-grid")} List
           </a>
           <a href="#/map" class="button ${mapView ? "primary" : "outline"} small">
-            ${icon("map")} 3D Map View
+            ${icon("map")} Map Explorer
           </a>
         </div>
       </div>
@@ -1511,14 +1581,15 @@ async function messagesPage(id) {
               <strong style="font-size:1.0625rem;">${e(selected.title)}</strong>
               <div style="font-size:0.75rem; color:var(--text-muted);">Direct encrypted conversation</div>
             </div>
-            <div style="display:flex; gap:8px;">
-              ${selected.studentId === api.currentUser.uid ? button("Request viewing", "viewing", "button outline small") : ""}
+            <div style="display:flex; gap:8px; align-items:center;">
+              ${selected.tenantId === api.currentUser.uid ? button("Request viewing", "viewing", "button outline small") : ""}
+              ${selected.tenantId === api.currentUser.uid ? `<button class="button outline small" style="color:var(--danger); border-color:rgba(239,68,68,0.3);" data-report="${e(selected.propertyId)}" title="Report landlord if they are disrespectful or not nice">${icon("flag")} Report Landlord</button>` : ""}
               <button class="button text-button small" data-action="block">Block</button>
             </div>
           </header>
           <div id="viewings" style="padding:8px 24px;"></div>
           <div id="messages" class="chat-messages-area">
-            <p class="text-muted" style="text-align:center;">Loading conversation...</p>
+            <div style="display:flex; justify-content:center; padding:24px 0;">${domiLoaderHtml("compact")}</div>
           </div>
           <form id="message-form" class="chat-input-row">
             <textarea id="message-text" name="text" required placeholder="Type a message..." style="min-height:48px; height:48px; padding:10px 14px;"></textarea>
@@ -1599,9 +1670,10 @@ async function wantedPage() {
 async function profilePage() {
   const pfp = api.currentUser?.photoURL || api.profile?.photoURL || "";
   const initial = (api.profile?.name || "U")[0].toUpperCase();
-  const isStudent = api.profile?.role === "student";
+  const isTenant = api.profile?.role !== "landlord";
   const isLandlord = api.profile?.role === "landlord";
   const emailVerified = api.currentUser?.emailVerified;
+  const landlordApplication = await api.getLandlordApplication().catch(() => null);
 
   return `
     <div class="profile-shell">
@@ -1641,7 +1713,7 @@ async function profilePage() {
               }
             </div>
             <div class="profile-avatar-hint">
-              JPEG, PNG, or WebP under 10 MB. Profile photos help landlords and students recognize each other.
+              JPEG, PNG, or WebP under 10 MB. Profile photos help landlords and tenants recognize each other.
             </div>
           </div>
         </div>
@@ -1675,12 +1747,12 @@ async function profilePage() {
           </label>
 
           ${
-            isStudent
+            !isLandlord
               ? `
             <label style="margin-top:12px;">Preferred School / Campus in Tuguegarao
               <input name="school" maxlength="120" value="${e(api.profile?.school || "")}" placeholder="e.g., Cagayan State University, SPUP, USL">
             </label>
-            <label style="margin-top:12px;">Bio & Roommate Preferences
+            <label style="margin-top:12px;">Bio & Housing Preferences
               <textarea name="bio" rows="3" maxlength="500" placeholder="Brief note about yourself, your year/course, study habits, or preferred room type...">${e(api.profile?.bio || "")}</textarea>
             </label>
           `
@@ -1689,15 +1761,10 @@ async function profilePage() {
 
           <div style="margin:20px 0 16px; padding:12px 16px; background:var(--bg-subtle); border-radius:var(--radius-md); font-size:0.875rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <div>
-              Platform Role: <strong style="text-transform:capitalize;">${e(api.profile?.role || "student")}</strong>
+              Platform Role: <strong>${isLandlord ? "Landlord / Owner" : "Tenant"}</strong>
               ${api.profile?.verified ? ` · <span class="admin-badge badge-verified">${icon("shield-check")} Verified Landlord</span>` : ""}
               ${api.isAdmin ? ` · <span class="admin-badge badge-you">${icon("shield-check")} Administrator</span>` : ""}
             </div>
-            ${
-              isLandlord && !api.profile?.verified
-                ? `<span style="font-size:0.75rem; color:var(--text-muted);">Verification review is in progress by admins.</span>`
-                : ""
-            }
           </div>
 
           <button class="button primary" type="submit">
@@ -1705,6 +1772,40 @@ async function profilePage() {
           </button>
         </form>
       </div>
+
+      ${
+        !api.profile?.verified
+          ? `
+      <div class="profile-card" id="landlord-verification">
+        <div class="profile-section-heading">${icon("badge-check")} Landlord permit review</div>
+        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:16px;">
+          Submit every required permit reference. An administrator must review and approve this application before you can publish a property.
+        </p>
+        ${
+          landlordApplication
+            ? `<div class="badge ${landlordApplication.status === "approved" ? "badge-success" : "badge-outline"}" style="margin-bottom:14px;">Status: ${e(String(landlordApplication.status || "submitted").replaceAll("_", " "))}</div>
+               ${landlordApplication.missingItems?.length ? `<div class="notice warning" style="margin-bottom:14px;"><strong>Missing or invalid:</strong> ${landlordApplication.missingItems.map((item) => e(item.replaceAll(/([A-Z])/g, " $1"))).join(", ")}. ${e(landlordApplication.reviewNotes || "Update the fields below and resubmit.")}</div>` : ""}`
+            : ""
+        }
+        <form id="landlord-application-form">
+          <div class="profile-grid-2">
+            <label>Legal name<input name="legalName" required maxlength="120" value="${e(landlordApplication?.legalName || api.profile?.name || "")}"></label>
+            <label>Property address<input name="propertyAddress" required maxlength="250" value="${e(landlordApplication?.propertyAddress || "")}"></label>
+            <label>Proof of ownership / lease reference<input name="proofOfOwnershipRef" required maxlength="120" value="${e(landlordApplication?.proofOfOwnershipRef || "")}" placeholder="Title, tax declaration, or notarized lease reference"></label>
+            <label>Business permit number<input name="businessPermitNumber" required maxlength="100" value="${e(landlordApplication?.businessPermitNumber || "")}"></label>
+            <label>Business permit expiry<input name="businessPermitExpires" required type="date" value="${e(landlordApplication?.businessPermitExpires || "")}"></label>
+            <label>Barangay clearance number<input name="barangayClearanceNumber" required maxlength="100" value="${e(landlordApplication?.barangayClearanceNumber || "")}"></label>
+            <label>Barangay clearance expiry<input name="barangayClearanceExpires" required type="date" value="${e(landlordApplication?.barangayClearanceExpires || "")}"></label>
+            <label>Fire safety certificate number<input name="fireSafetyNumber" required maxlength="100" value="${e(landlordApplication?.fireSafetyNumber || "")}"></label>
+            <label>Fire safety certificate expiry<input name="fireSafetyExpires" required type="date" value="${e(landlordApplication?.fireSafetyExpires || "")}"></label>
+          </div>
+          <label class="check" style="margin-top:14px;"><input type="checkbox" name="consent" required ${landlordApplication?.consent ? "checked" : ""}> I certify these permit details are accurate and authorize DormPath administrators to review them.</label>
+          <p class="text-muted" style="font-size:0.75rem; margin:10px 0;">Do not upload identity scans as listing photos. Permit references are stored in the private review record.</p>
+          <button class="button primary" type="submit">${landlordApplication ? "Update and resubmit" : "Submit for admin review"}</button>
+        </form>
+      </div>`
+          : ""
+      }
 
       <!-- Security: Password Management -->
       <div class="profile-card">
@@ -1758,17 +1859,53 @@ async function profilePage() {
         </div>
       </div>
 
-      <!-- Account Session -->
-      <div class="profile-card" style="border-color:#fecaca;">
+      <!-- Appearance & Theme Settings -->
+      <div class="profile-card">
+        <div class="profile-section-heading">
+          ${icon("sun-moon")} Appearance & Theme
+        </div>
+        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:14px;">
+          Choose your visual appearance for browsing listings and managing properties.
+        </p>
+        <div class="profile-theme-box">
+          <div class="profile-theme-info">
+            <span style="font-size:1.25rem;">${document.documentElement.dataset.theme === "dark" ? "🌙" : "☀️"}</span>
+            <div>
+              <strong style="display:block; font-size:0.9375rem; color:var(--text-main);">
+                Current Theme: ${document.documentElement.dataset.theme === "dark" ? "Dark Mode" : "Light Mode"}
+              </strong>
+              <span style="font-size:0.75rem; color:var(--text-muted);">
+                ${document.documentElement.dataset.theme === "dark" ? "Sleek low-light contrast" : "Crisp high-clarity daylight"}
+              </span>
+            </div>
+          </div>
+          <button type="button" class="button outline small" data-action="theme">
+            ${icon("sun-moon")} Switch Theme
+          </button>
+        </div>
+      </div>
+
+      <!-- Account & Session Management -->
+      <div class="profile-card">
         <div class="profile-section-heading" style="color:var(--danger);">
           ${icon("log-out")} Account Session
         </div>
-        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:16px;">
-          Signing out will end your current session on this device.
+        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:14px;">
+          Securely sign out of your DormPath session on this device.
         </p>
-        <button class="button outline" data-action="logout" style="color:var(--danger); border-color:var(--danger);">
-          ${icon("log-out")} Sign out
-        </button>
+        <div class="profile-logout-box">
+          <div>
+            <strong style="display:block; font-size:0.875rem; color:var(--text-main);">
+              Signed in as ${e(api.currentUser?.email || "User")}
+            </strong>
+            <span style="font-size:0.75rem; color:var(--text-muted); text-transform:capitalize;">
+              Role: ${isLandlord ? "Landlord / Owner" : "Tenant"}
+            </span>
+          </div>
+          <button type="button" class="button outline small" style="color:var(--danger); border-color:rgba(239, 68, 68, 0.4);" data-action="logout">
+            ${icon("log-out")} Log Out
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -1824,84 +1961,226 @@ async function propertiesPage() {
   `;
 }
 
-// Redesigned Property Form (Add / Edit)
+// Redesigned Property Form (Add / Edit) - Centered & Premium
 function propertyForm(p = {}) {
+  const isLandlord = (api.profile?.role === "landlord" && api.profile?.verified) || api.isAdmin;
+
   return `
-    <div style="max-width:800px;">
-      <div style="margin-bottom:24px;">
-        <div class="overline">LISTING EDITOR</div>
-        <h2>${p.id ? "Edit Property" : "Add New Property"}</h2>
+    <div class="property-form-wrapper">
+      <div style="text-align:center; margin-bottom:28px;">
+        <div class="overline" style="justify-content:center;">${icon("building-2")} LISTING CREATOR</div>
+        <h2 style="font-size:clamp(1.75rem, 3vw, 2.25rem); margin:6px 0;">${p.id ? "Edit Property Listing" : "Add New Property"}</h2>
+        <p style="color:var(--text-secondary); max-width:540px; margin:0 auto; font-size:0.9375rem;">
+          Publish and manage your boarding house, dormitory, or apartment in Tuguegarao City & Peñablanca.
+        </p>
       </div>
 
-      <form id="property-form" data-id="${e(p.id || "")}" class="detail-section">
-        <label>Property title
-          <input name="title" required maxlength="120" value="${e(p.title || "")}" placeholder="e.g. Green Dormitory Centro">
-        </label>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-          <label>Barangay
-            <input name="barangay" required maxlength="100" value="${e(p.barangay || "")}" placeholder="e.g. Centro 01">
-          </label>
-          <label>Nearby school / campus
-            <input name="school" maxlength="120" value="${e(p.school || "")}" placeholder="e.g. USL or CSU">
-          </label>
-        </div>
-        <label>Full street address
-          <input name="address" required maxlength="250" value="${e(p.address || "")}" placeholder="123 Rizal St...">
-        </label>
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;">
-          <label>Starting monthly rent (₱)
-            <input name="minPrice" type="number" min="0" max="1000000" required value="${p.minPrice ?? ""}">
-          </label>
-          <label>Security deposit (₱)
-            <input name="deposit" type="number" min="0" max="1000000" required value="${p.deposit ?? 0}">
-          </label>
-          <label>Advance payment (₱)
-            <input name="advance" type="number" min="0" max="1000000" required value="${p.advance ?? 0}">
-          </label>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-          <label>Latitude
-            <input name="lat" type="number" step="any" min="-90" max="90" required value="${p.lat ?? 17.6132}">
-          </label>
-          <label>Longitude
-            <input name="lng" type="number" step="any" min="-180" max="180" required value="${p.lng ?? 121.727}">
-          </label>
-        </div>
-        <label>Full description
-          <textarea name="description" required maxlength="4000">${e(p.description || "")}</textarea>
-        </label>
-        <label>Utilities policy
-          <textarea name="utilities" required maxlength="1000" placeholder="Water, electricity, wifi details...">${e(p.utilities || "")}</textarea>
-        </label>
-        <label>House rules
-          <textarea name="rules" required maxlength="2000" placeholder="Curfew, visitor policy, laundry rules...">${e(p.rules || "")}</textarea>
-        </label>
-
-        <fieldset style="border:none; margin:16px 0;">
-          <legend style="font-weight:700; font-size:0.875rem; margin-bottom:10px;">Room types offered</legend>
-          <div style="display:flex; gap:12px; flex-wrap:wrap;">
-            ${TYPES.map((t) => `<label class="check"><input type="checkbox" name="roomTypes" value="${t}" ${p.roomTypes?.includes(t) ? "checked" : ""}> ${t}</label>`).join("")}
+      ${
+        !isLandlord
+          ? `
+        <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-xl); padding:20px; margin-bottom:24px; display:flex; align-items:flex-start; gap:16px;">
+          <div style="width:42px; height:42px; border-radius:50%; background:rgba(239,68,68,0.15); color:var(--danger); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            ${icon("alert-circle")}
           </div>
-        </fieldset>
-
-        <fieldset style="border:none; margin:16px 0;">
-          <legend style="font-weight:700; font-size:0.875rem; margin-bottom:10px;">Available amenities</legend>
-          <div style="display:flex; gap:12px; flex-wrap:wrap;">
-            ${AMENITIES.map((a) => `<label class="check"><input type="checkbox" name="amenities" value="${a}" ${p.amenities?.includes(a) ? "checked" : ""}> ${a}</label>`).join("")}
+          <div style="flex:1;">
+            <strong style="color:var(--danger); font-size:1rem; display:block; margin-bottom:4px;">Landlord Account Required to Publish</strong>
+            <p style="font-size:0.875rem; color:var(--text-secondary); margin:0 0 12px; line-height:1.5;">
+              Your landlord permit application must be approved by an administrator before you can publish properties.
+            </p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <a href="#/profile" class="button primary small">${icon("shield-check")} Open permit review</a>
+              <a href="#/dashboard" class="button outline small">
+                Back to Dashboard
+              </a>
+            </div>
           </div>
-        </fieldset>
+        </div>
+      `
+          : ""
+      }
 
-        <label>Photos (Upload up to 8 WebP, PNG, or JPEG images)
-          <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-        </label>
+      <form id="property-form" data-id="${e(p.id || "")}" data-current-video="${e(p.video || "")}">
+        <!-- Section 1: Property Location & Identification -->
+        <div class="property-form-card">
+          <div class="property-section-title">
+            ${icon("map-pin")} Property Location & Title
+          </div>
 
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
-          ${(p.photos || []).map((url) => `<label style="display:inline-flex; align-items:center; gap:6px;"><img src="${e(url)}" style="width:60px; height:60px; object-fit:cover; border-radius:6px;"><input name="keepPhotos" type="checkbox" value="${e(url)}" checked> Keep</label>`).join("")}
+          <label>Property Listing Title
+            <input name="title" required maxlength="120" value="${e(p.title || "")}" placeholder="e.g. Green Haven Residences Centro">
+            <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">Use a descriptive name tenants can easily search and identify.</small>
+          </label>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px;">
+            <label>Barangay (Tuguegarao & Peñablanca)
+              <select name="barangay" id="property-barangay-select" required>
+                <option value="">Select Barangay...</option>
+                <optgroup label="Tuguegarao City">
+                  ${TUGUEGARAO_BARANGAYS.map((b) => `<option value="${b}" ${p.barangay === b ? "selected" : ""}>${b}</option>`).join("")}
+                </optgroup>
+                <optgroup label="Peñablanca, Cagayan">
+                  ${PENABLANCA_BARANGAYS.map((b) => `<option value="${b}" ${p.barangay === b ? "selected" : ""}>${b}</option>`).join("")}
+                </optgroup>
+              </select>
+            </label>
+            <label>Nearby School or Campus
+              <input name="school" maxlength="120" value="${e(p.school || "")}" placeholder="e.g. USL, SPUP, CSU Carig, CSU Andrews">
+            </label>
+          </div>
+
+          <label style="margin-top:14px;">Complete Street Address
+            <input name="address" required maxlength="250" value="${e(p.address || "")}" placeholder="e.g. 45 Gomez St., Centro 02, Tuguegarao City">
+          </label>
+
+          <!-- Hidden Internal Coordinates (No visible Lat/Lng inputs) -->
+          <input type="hidden" name="lat" id="property-lat" value="${p.lat ?? ""}">
+          <input type="hidden" name="lng" id="property-lng" value="${p.lng ?? ""}">
+          <input type="hidden" name="locationConfirmed" id="property-location-confirmed" value="${p.lat && p.lng ? "true" : "false"}">
+
+          <!-- Advanced Interactive Property Location Map -->
+          <div style="margin-top:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:0.875rem; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px;">
+                ${icon("map-pin")} Interactive Property Location Pin
+              </span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">
+                Drag pin or search street/landmark
+              </span>
+            </div>
+            <div id="property-map-picker-mount"></div>
+          </div>
         </div>
 
-        <button class="button primary large full" type="submit">
-          Save Property for Review ${icon("arrow-right")}
-        </button>
+        <!-- Section 2: Pricing & Move-in Terms -->
+        <div class="property-form-card">
+          <div class="property-section-title">
+            ${icon("wallet")} Pricing & Move-in Terms
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:16px;">
+            <label>Starting Monthly Rent (₱)
+              <input name="minPrice" type="number" min="0" max="1000000" required value="${p.minPrice ?? ""}" placeholder="e.g. 2500">
+            </label>
+            <label>Security Deposit (₱)
+              <input name="deposit" type="number" min="0" max="1000000" required value="${p.deposit ?? 0}" placeholder="e.g. 2500">
+            </label>
+            <label>Advance Payment (₱)
+              <input name="advance" type="number" min="0" max="1000000" required value="${p.advance ?? 0}" placeholder="e.g. 2500">
+            </label>
+          </div>
+        </div>
+
+        <!-- Section 3: Room Types Offered -->
+        <div class="property-form-card">
+          <div class="property-section-title">
+            ${icon("bed-single")} Room Types Offered (Select at least one)
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            ${TYPES.map((t) => `
+              <label class="check-pill">
+                <input type="checkbox" name="roomTypes" value="${t}" ${p.roomTypes?.includes(t) ? "checked" : ""}>
+                <span>${t}</span>
+              </label>
+            `).join("")}
+          </div>
+          <small style="color:var(--text-muted); font-size:0.75rem; margin-top:8px; display:block;">Select every room format available in this boarding house or dormitory.</small>
+        </div>
+
+        <!-- Section 4: Description, Utilities & House Policies -->
+        <div class="property-form-card">
+          <div class="property-section-title">
+            ${icon("file-text")} Description & House Policies
+          </div>
+
+          <label>Full Property Description
+            <textarea name="description" required maxlength="4000" rows="4" placeholder="Detail the property layout, environment, proximity to universities, security, and living vibe...">${e(p.description || "")}</textarea>
+          </label>
+
+          <label style="margin-top:14px;">Utilities Policy (Water, Electricity, Internet)
+            <textarea name="utilities" required maxlength="1000" rows="2" placeholder="e.g., Free Wi-Fi, water included in rent, electricity sub-metered per room...">${e(p.utilities || "")}</textarea>
+          </label>
+
+          <label style="margin-top:14px;">House Rules & Curfew
+            <textarea name="rules" required maxlength="2000" rows="2" placeholder="e.g., 10:00 PM curfew, visitors allowed in lounge until 8:00 PM, strictly no smoking, quiet hours...">${e(p.rules || "")}</textarea>
+          </label>
+        </div>
+
+        <!-- Section 5: Amenities -->
+        <div class="property-form-card">
+          <div class="property-section-title">
+            ${icon("sparkles")} Available Amenities
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            ${AMENITIES.map((a) => `
+              <label class="check-pill">
+                <input type="checkbox" name="amenities" value="${a}" ${p.amenities?.includes(a) ? "checked" : ""}>
+                <span>${a}</span>
+              </label>
+            `).join("")}
+          </div>
+        </div>
+
+        <!-- Section 6: Pictures & Direct Video Tour (NO External YouTube Link) -->
+        <div class="property-form-card">
+          <div class="property-section-title">
+            ${icon("camera")} Pictures & Video Walkthrough
+          </div>
+
+          <label>Upload Photos (Up to 8 JPEG, PNG, or WebP images)
+            <input name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple style="margin-top:6px;">
+            <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">Select boarding house photos (rooms, exterior, amenities) under 10 MB each.</small>
+          </label>
+
+          <div style="margin-top:18px; padding-top:16px; border-top:1px dashed var(--border);">
+            <label>Direct Video Tour File Upload
+              <input name="videoFile" type="file" accept="video/mp4,video/webm,video/quicktime" style="margin-top:6px;">
+              <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">Upload a room video walkthrough (MP4, WebM, MOV under 40 MB). Handled directly and securely via Cloudinary.</small>
+            </label>
+          </div>
+
+          ${
+            (p.photos || []).length
+              ? `
+            <div style="margin-top:18px;">
+              <span style="font-size:0.8125rem; font-weight:700; display:block; margin-bottom:10px; color:var(--text-main);">Current Photos:</span>
+              <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                ${(p.photos || [])
+                  .map(
+                    (url) => `
+                  <label style="display:inline-flex; align-items:center; gap:8px; background:var(--bg-subtle); padding:6px 10px; border-radius:var(--radius-md); border:1px solid var(--border); cursor:pointer;">
+                    <img src="${e(url)}" style="width:54px; height:54px; object-fit:cover; border-radius:6px;" alt="Photo">
+                    <input name="keepPhotos" type="checkbox" value="${e(url)}" checked>
+                    <span style="font-size:0.8125rem; font-weight:600;">Keep</span>
+                  </label>
+                `,
+                  )
+                  .join("")}
+              </div>
+            </div>
+            `
+              : ""
+          }
+
+          ${
+            p.video
+              ? `
+            <div style="margin-top:18px; padding:12px 16px; background:var(--bg-subtle); border-radius:var(--radius-md); border:1px solid var(--border); font-size:0.8125rem;">
+              <strong>Current Video Tour:</strong>
+              <div style="word-break:break-all; color:var(--text-secondary); margin-top:4px;">${e(p.video)}</div>
+            </div>
+          `
+              : ""
+          }
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:center; justify-content:center; margin-top:16px;">
+          <a href="#/properties" class="button outline large" style="min-width:140px;">
+            Cancel
+          </a>
+          <button class="button primary large" type="submit" style="min-width:240px;" ${!isLandlord ? "disabled" : ""}>
+            Save Property Listing ${icon("arrow-right")}
+          </button>
+        </div>
       </form>
     </div>
   `;
@@ -1985,7 +2264,7 @@ function roomDialog(r = {}) {
 // Redesigned Admin Console
 async function adminPage(tab = "users") {
   if (!api.isAdmin) return empty("Admin Access Required", "This area is restricted to platform administrators.");
-  const allowed = ["users", "properties", "reports", "auditLogs"];
+  const allowed = ["users", "landlordApplications", "properties", "reports", "auditLogs"];
   if (!allowed.includes(tab)) tab = "users";
   const data = await api.adminList(tab);
 
@@ -1994,10 +2273,54 @@ async function adminPage(tab = "users") {
       <div class="admin-header">
         <div class="admin-title-area">
           <div class="overline">PLATFORM GOVERNANCE</div>
-          <h2>${icon("shield-check")} Admin Console</h2>
+          <h2>${icon("shield-check")} Administrator Console</h2>
           <p style="color:var(--text-secondary); font-size:0.875rem; margin-top:4px;">
-            Supervise user identities, moderate boarding house listings, and resolve student safety reports.
+            Supervise user identities, manage verified property owners, and resolve community safety inquiries.
           </p>
+        </div>
+      </div>
+
+      <div class="notice">Showing up to 100 records per tab. Counts describe loaded records, not platform totals. Verify ownership evidence before granting an owner badge.</div>
+      <!-- Admin Top KPI Dashboard -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px;">
+        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
+          <div style="width:44px; height:44px; border-radius:10px; background:rgba(37,99,235,0.1); color:var(--brand-primary); display:flex; align-items:center; justify-content:center;">
+            ${icon("users")}
+          </div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">User Accounts (loaded)</div>
+            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">${tab === "users" ? data.length : "—"}</div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
+          <div style="width:44px; height:44px; border-radius:10px; background:rgba(16,185,129,0.1); color:var(--success); display:flex; align-items:center; justify-content:center;">
+            ${icon("building-2")}
+          </div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Published listings loaded</div>
+            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">${state.properties?.length || 0}</div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
+          <div style="width:44px; height:44px; border-radius:10px; background:rgba(245,158,11,0.1); color:#d97706; display:flex; align-items:center; justify-content:center;">
+            ${icon("badge-check")}
+          </div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Direct Landlord Listings</div>
+            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">Admin Review</div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
+          <div style="width:44px; height:44px; border-radius:10px; background:rgba(239,68,68,0.1); color:var(--danger); display:flex; align-items:center; justify-content:center;">
+            ${icon("flag")}
+          </div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Safety Center</div>
+            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">${tab === "reports" ? data.length : "—"}</div>
+          </div>
         </div>
       </div>
 
@@ -2006,6 +2329,10 @@ async function adminPage(tab = "users") {
         <a href="#/admin/users" class="admin-tab-link ${tab === "users" ? "active" : ""}">
           ${icon("users")} User Accounts
           <span class="admin-tab-count">${tab === "users" ? data.length : "•"}</span>
+        </a>
+        <a href="#/admin/landlordApplications" class="admin-tab-link ${tab === "landlordApplications" ? "active" : ""}">
+          ${icon("badge-check")} Permit Reviews
+          <span class="admin-tab-count">${tab === "landlordApplications" ? data.length : "•"}</span>
         </a>
         <a href="#/admin/properties" class="admin-tab-link ${tab === "properties" ? "active" : ""}">
           ${icon("building-2")} Property Listings
@@ -2033,8 +2360,8 @@ async function adminPage(tab = "users") {
           <div class="admin-filter-pills">
             <button type="button" class="admin-filter-chip active" data-user-filter="all">All (${data.length})</button>
             <button type="button" class="admin-filter-chip" data-user-filter="landlord">Landlords (${data.filter((u) => u.role === "landlord").length})</button>
-            <button type="button" class="admin-filter-chip" data-user-filter="student">Students (${data.filter((u) => u.role === "student").length})</button>
-            <button type="button" class="admin-filter-chip" data-user-filter="unverified">Pending Landlords (${data.filter((u) => u.role === "landlord" && !u.verified).length})</button>
+            <button type="button" class="admin-filter-chip" data-user-filter="tenant">Tenants (${data.filter((u) => u.role !== "landlord").length})</button>
+            <button type="button" class="admin-filter-chip" data-user-filter="verified">Verified Owners (${data.filter((u) => u.role === "landlord" && u.verified).length})</button>
             <button type="button" class="admin-filter-chip" data-user-filter="suspended">Suspended (${data.filter((u) => u.disabled).length})</button>
           </div>
         </div>
@@ -2046,13 +2373,12 @@ async function adminPage(tab = "users") {
                   .map((r) => {
                     const isSelf = r.id === api.currentUser?.uid;
                     const isLandlord = r.role === "landlord";
-                    const isStudent = r.role === "student";
                     const initial = (r.name || "U")[0].toUpperCase();
 
                     return `
-                <div class="admin-user-card ${r.disabled ? "is-suspended" : ""}" data-role="${e(r.role || "student")}" data-verified="${r.verified ? "true" : "false"}" data-disabled="${r.disabled ? "true" : "false"}">
+                <div class="admin-user-card ${r.disabled ? "is-suspended" : ""}" data-role="${e(r.role || "user")}" data-verified="${r.verified ? "true" : "false"}" data-disabled="${r.disabled ? "true" : "false"}">
                   <div class="admin-user-profile">
-                    <div class="admin-avatar ${isLandlord ? "landlord" : "student"}">
+                    <div class="admin-avatar ${isLandlord ? "landlord" : "tenant"}">
                       ${r.photoURL ? `<img src="${e(r.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="User">` : initial}
                     </div>
                     <div class="admin-user-details">
@@ -2064,12 +2390,12 @@ async function adminPage(tab = "users") {
                         ${
                           isLandlord
                             ? `<span class="admin-badge badge-landlord">🏠 Landlord / Owner</span>`
-                            : `<span class="admin-badge badge-student">🎓 Student Member</span>`
+                            : `<span class="admin-badge badge-tenant">👤 Tenant</span>`
                         }
                         ${
                           isLandlord
                             ? r.verified
-                              ? `<span class="admin-badge badge-verified">${icon("shield-check")} Verified Owner</span>`
+                              ? `<span class="admin-badge badge-verified">${icon("shield-check")} Permit-Approved Owner</span>`
                               : `<span class="admin-badge badge-unverified">${icon("clock")} Unverified</span>`
                             : ""
                         }
@@ -2085,14 +2411,10 @@ async function adminPage(tab = "users") {
 
                   <div class="admin-actions-group">
                     ${
-                      isLandlord
-                        ? !r.verified
-                          ? `<button class="button small btn-verify-success" data-verify="${r.id}:true">
-                              ${icon("shield-check")} Verify Owner
-                            </button>`
-                          : `<button class="button outline small" style="color:var(--text-secondary);" data-verify="${r.id}:false" title="Revoke verified owner badge">
-                              Revoke Badge
-                            </button>`
+                      isLandlord && r.verified
+                        ? `<button class="button outline small" style="color:var(--text-secondary);" data-verify="${r.id}:false" title="Revoke verified owner badge">
+                            Revoke Badge
+                          </button>`
                         : ""
                     }
                     ${
@@ -2115,6 +2437,39 @@ async function adminPage(tab = "users") {
           }
         </div>
       `
+          : ""
+      }
+
+      ${
+        tab === "landlordApplications"
+          ? `<div style="display:grid; gap:14px;">
+              ${
+                data.length
+                  ? data.map((application) => `
+                    <article class="detail-section" style="margin:0;">
+                      <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+                        <div>
+                          <h3 style="margin:0 0 6px;">${e(application.legalName || "Unnamed applicant")}</h3>
+                          <div class="badge badge-outline">${e(String(application.status || "submitted").replaceAll("_", " "))}</div>
+                        </div>
+                        <div class="admin-actions-group">
+                          <button class="button outline small" data-review-landlord="${e(application.id)}:changes_requested">Request changes</button>
+                          <button class="button primary small" data-review-landlord="${e(application.id)}:approved">${icon("shield-check")} Approve landlord</button>
+                        </div>
+                      </div>
+                      <div class="profile-grid-2" style="margin-top:14px; font-size:0.8125rem;">
+                        <div><strong>Property:</strong> ${e(application.propertyAddress)}</div>
+                        <div><strong>Ownership/lease:</strong> ${e(application.proofOfOwnershipRef)}</div>
+                        <div><strong>Business permit:</strong> ${e(application.businessPermitNumber)} · expires ${e(application.businessPermitExpires)}</div>
+                        <div><strong>Barangay clearance:</strong> ${e(application.barangayClearanceNumber)} · expires ${e(application.barangayClearanceExpires)}</div>
+                        <div><strong>Fire safety:</strong> ${e(application.fireSafetyNumber)} · expires ${e(application.fireSafetyExpires)}</div>
+                        <div><strong>Applicant UID:</strong> ${e(application.userId)}</div>
+                      </div>
+                      ${application.missingItems?.length ? `<div class="notice warning" style="margin-top:12px;">Missing: ${application.missingItems.map((item) => e(item)).join(", ")} ${e(application.reviewNotes || "")}</div>` : ""}
+                    </article>`).join("")
+                  : `<div class="detail-section"><p class="text-muted">No landlord permit applications submitted.</p></div>`
+              }
+            </div>`
           : ""
       }
 
@@ -2268,12 +2623,12 @@ function about() {
       <div class="overline">OUR MISSION</div>
       <h1>Built around belonging.</h1>
       <p style="font-size:1.125rem; margin:14px 0 32px;">
-        DormPath connects students with verified local property owners in Tuguegarao City without middleman fees.
+        DormPath connects tenants with verified local property owners in Tuguegarao City without middleman fees.
       </p>
 
       <div class="detail-section">
-        <h3>Our Promise to Students</h3>
-        <p>Browse without an account. Join free to save places, message owners, and post room requests. No student subscriptions, platform booking markups, or messaging charges.</p>
+        <h3>Our Promise to Tenants</h3>
+        <p>Browse without an account. Join free to save places, message owners, and post room requests. No tenant subscriptions, platform booking markups, or messaging charges.</p>
         <h3 style="margin-top:20px;">Verified Owners & Accurate Vacancies</h3>
         <p>Owner badges are granted after manual identity review. Vacancies carry timestamps so you always know when availability was last updated.</p>
       </div>
@@ -2284,86 +2639,61 @@ function about() {
 // Republic Act No. 10173 Compliant Data Privacy Policy
 function privacyPage() {
   return `
-    <div class="policy-page">
-      <div class="policy-card">
-        <div class="policy-badge">${icon("shield-check")} Republic Act No. 10173 Compliant</div>
-        <h1>Data Privacy Policy</h1>
-        <p style="color:var(--text-secondary); margin-top:8px;">
-          Last updated: October 2026 · Tuguegarao City, Cagayan, Philippines
-        </p>
+    <div class="legal-modal-inner">
+      <div class="policy-badge">${icon("shield-check")} Data Privacy Notice (RA 10173)</div>
+      <h2 style="font-size:1.625rem; font-weight:800; margin:10px 0 4px; color:var(--text-main);">Privacy Policy</h2>
+      <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:20px;">
+        Last updated: 17 October 2026 · Transparent information protection for DormPath tenants and landlords in Tuguegarao City.
+      </p>
 
-        <div class="policy-callout">
-          <strong>Our Core Student Guarantee (₱0 Fees, Zero Data Selling):</strong>
-          <p style="margin-top:6px; font-size:0.875rem;">
-            DormPath is a student-first public service platform. We NEVER sell, lease, or monetize your personal information to third-party data brokers or advertisers. Browse without tracking, search without sign-up.
-          </p>
-        </div>
-
-        <div class="policy-section">
-          <h3>1. Scope and Legal Basis</h3>
-          <p>
-            DormPath operates in full compliance with the <strong>Data Privacy Act of 2012 (Republic Act No. 10173)</strong> of the Republic of the Philippines and its Implementing Rules and Regulations (IRR). This policy describes how we collect, protect, process, and respect the privacy rights of students, renters, and property owners in Tuguegarao City.
-          </p>
-        </div>
-
-        <div class="policy-section">
-          <h3>2. Information We Collect</h3>
-          <ul>
-            <li><strong>Student & Renter Accounts:</strong> Display name, email address, and optional saved bookmarks/preferences. We do not require or collect student payment cards or sensitive personal financial data.</li>
-            <li><strong>Property Owner / Landlord Accounts:</strong> Contact details, property titles, physical street addresses, and proof of ownership / barangay verification documents.</li>
-            <li><strong>Direct In-Platform Messages:</strong> Securely transmitted conversations between students and landlords solely for arranging inquiries and viewings.</li>
-            <li><strong>Technical Telemetry:</strong> Minimal session tokens, device viewport characteristics, and offline cache preferences stored locally in your browser.</li>
-          </ul>
-        </div>
-
-        <div class="policy-section">
-          <h3>3. Confidential Landlord Verification Documents</h3>
-          <p>
-            Government-issued identification cards and barangay verification records uploaded by property owners are subject to strict data compartmentalization. These files are encrypted at rest, accessible strictly by authenticated platform administrators for identity audit, and are <strong>NEVER displayed publicly</strong> or shared with other users.
-          </p>
-        </div>
-
-        <div class="policy-section">
-          <h3>4. Data Security & Storage Architecture</h3>
-          <p>
-            Your information is protected through multi-layered industry safeguards:
-          </p>
-          <ul>
-            <li><strong>Cryptographic Authorization:</strong> Authentication is verified via Firebase Identity Platform with short-lived JSON Web Tokens (JWT).</li>
-            <li><strong>Row-Level Firestore Security Rules:</strong> Unauthenticated reads or writes to private chats, reports, or verification queues are rejected at the database level.</li>
-            <li><strong>HMAC-SHA256 Signed Uploads:</strong> Media uploads through Cloudinary require cryptographic server-side signatures; anonymous write access is blocked.</li>
-            <li><strong>HTTPS & Content Security:</strong> Enforced TLS 1.3 encryption, Content Security Policies (CSP), and Strict-Transport-Security.</li>
-          </ul>
-        </div>
-
-        <div class="policy-section">
-          <h3>5. Anti-Phishing & Anti-Scam Protection</h3>
-          <div class="policy-callout" style="border-left-color:var(--danger);">
-            <strong>Protect Yourself from Fraud:</strong>
-            <ul style="margin:8px 0 0 16px; font-size:0.875rem;">
-              <li>DormPath administrators will <strong>NEVER</strong> contact you asking for your password, OTP, or advance reservation fees.</li>
-              <li>Always inspect rooms physically in Tuguegarao before transferring security deposits.</li>
-              <li>Only transact with landlords displaying the official <strong>Verified Owner</strong> badge.</li>
-            </ul>
+      <div class="legal-cards-grid">
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("user-round")}</span>
+            <strong>Accounts & Housing Activity</strong>
           </div>
-        </div>
-
-        <div class="policy-section">
-          <h3>6. Your Rights as a Data Subject</h3>
-          <p>Under the Philippine Data Privacy Act of 2012, you possess the right to:</p>
-          <ul>
-            <li><strong>Access:</strong> Request a copy of all personal information DormPath holds about you.</li>
-            <li><strong>Rectification:</strong> Correct or update any inaccurate profile details at any time in your Settings.</li>
-            <li><strong>Erasure / Deletion:</strong> Permanently delete your account, saved favorites, and associated messages.</li>
-            <li><strong>Data Portability:</strong> Clear or export your cached offline storage via the Profile settings tab.</li>
-          </ul>
-        </div>
-
-        <div class="policy-section">
-          <h3>7. Contact Our Data Protection Officer</h3>
           <p>
-            For any questions, verification inquiries, or data privacy requests, contact the DormPath administration team at:
-            <br><strong>privacy@dormpath.ph</strong> · Tuguegarao City, Cagayan Valley, 3500.
+            Firebase Authentication handles your email/password or Google sign-in. DormPath stores your display name, role, saved listings, requests, encrypted messages, and moderation reports in Cloud Firestore. Published property addresses, photos, and approximate barangay coordinates are publicly visible to help tenants discover rooms.
+          </p>
+        </div>
+
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("shield")}</span>
+            <strong>Trusted Service Providers</strong>
+          </div>
+          <p>
+            Firebase provides database and authentication. Netlify securely hosts the website and serverless upload function. Cloudinary stores optimized room photographs. Google reCAPTCHA protects against automated bots. OpenFreeMap and OpenStreetMap deliver 3D maps without personal location tracking.
+          </p>
+        </div>
+
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("hard-drive")}</span>
+            <strong>Device Storage & Offline Privacy</strong>
+          </div>
+          <p>
+            "Remember me" securely preserves your login session token. Your password is never stored by DormPath. Offline message synchronization is optional; clear local cache anytime from your Profile Settings.
+          </p>
+        </div>
+
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("message-square-plus")}</span>
+            <strong>Direct Communication & Verification Safety</strong>
+          </div>
+          <p>
+            Direct messages are restricted strictly to conversation participants. Administrators supervise safety reports and community standards. Never upload government IDs or banking credentials in public listing photos.
+          </p>
+        </div>
+
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("badge-check")}</span>
+            <strong>Your Rights & Control</strong>
+          </div>
+          <p>
+            Under Philippine RA 10173, you retain rights to view, update, export, or request deletion of your account records. You can sign out or clear offline storage directly from the platform.
           </p>
         </div>
       </div>
@@ -2371,48 +2701,53 @@ function privacyPage() {
   `;
 }
 
-// Community Terms of Service & Housing Rules
 function termsPage() {
   return `
-    <div class="policy-page">
-      <div class="policy-card">
-        <div class="policy-badge">${icon("heart-handshake")} Community Trust</div>
-        <h1>Terms of Service</h1>
-        <p style="color:var(--text-secondary); margin-top:8px;">
-          Fair, honest, and safe housing for Tuguegarao City
-        </p>
+    <div class="legal-modal-inner">
+      <div class="policy-badge">${icon("heart-handshake")} Community Trust & Standards</div>
+      <h2 style="font-size:1.625rem; font-weight:800; margin:10px 0 4px; color:var(--text-main);">Terms of Service</h2>
+      <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:20px;">
+        Fair, honest, and respectful housing for Tuguegarao City tenants and property owners.
+      </p>
 
-        <div class="policy-section">
-          <h3>1. The DormPath Community Standard</h3>
+      <div class="legal-cards-grid">
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("house")}</span>
+            <strong>1. The DormPath Community Standard</strong>
+          </div>
           <p>
-            DormPath was created to make finding a home near Cagayan State University (Carig & Andrews), University of Saint Louis, St. Paul University Philippines, and other local schools safe, transparent, and respectful.
+            DormPath was created to make finding a home near Cagayan State University (Carig & Andrews), University of Saint Louis, St. Paul University Philippines, and other local schools safe, transparent, and respectful. All users must maintain courteous and professional conduct.
           </p>
         </div>
 
-        <div class="policy-section">
-          <h3>2. Honest Vacancy Policy for Landlords</h3>
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("badge-check")}</span>
+            <strong>2. Honest Vacancy & Pricing Policy for Landlords</strong>
+          </div>
           <p>
-            Property owners listing boarding houses, dormitories, or apartments must:
-          </p>
-          <ul>
-            <li>Accurately update room availability and total capacity numbers.</li>
-            <li>Disclose real monthly rental rates, security deposits, and advance payments without hidden platform fees.</li>
-            <li>Clearly specify utilities policies (e.g. Wi-Fi inclusion, electricity sub-meters for air conditioning).</li>
-            <li>Never post fake listings, fabricated photos, or misleading room types.</li>
-          </ul>
-        </div>
-
-        <div class="policy-section">
-          <h3>3. Zero Student Fees</h3>
-          <p>
-            Students browse, filter, save, and message landlords completely free of charge. DormPath charges no transaction fees, viewing commissions, or booking markups.
+            Property owners must accurately report vacancy counts, disclose exact monthly rates and deposit terms without hidden platform fees, and specify utility policies (Wi-Fi, water, electricity sub-meters). Fake photos or misleading room details are prohibited.
           </p>
         </div>
 
-        <div class="policy-section">
-          <h3>4. Safety & Tenancy Guidelines</h3>
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("sparkles")}</span>
+            <strong>3. 100% Free for Tenants</strong>
+          </div>
           <p>
-            All agreements, room rentals, and security deposits are established directly between the student and the property owner. Students are strongly advised to perform a physical ocular inspection of the premises and request an official written receipt or contract prior to paying any deposit.
+            Tenants browse, explore 3D maps, save listings, and message landlords completely free of charge. DormPath charges zero reservation fees, commissions, or messaging charges.
+          </p>
+        </div>
+
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("shield-check")}</span>
+            <strong>4. Tenant Safety & Landlord Accountability</strong>
+          </div>
+          <p>
+            DormPath enforces a strict zero-tolerance policy against rude, abusive, disrespectful, or deceptive behavior. Tenants can immediately file safety reports from chat, listing pages, or their dashboard for prompt administrator review and landlord suspension.
           </p>
         </div>
       </div>
@@ -2420,7 +2755,7 @@ function termsPage() {
   `;
 }
 
-// Dedicated DOMI AI Assistant Page (Unlimited Turns)
+// Dedicated DOMI Housing Assistant (Fullscreen with 3D Companion)
 function domiPage() {
   const messagesHtml = (state.domiHistory || [])
     .map((m) => {
@@ -2429,7 +2764,7 @@ function domiPage() {
         <div class="domi-msg ${isUser ? "user" : "domi"}">
           ${
             !isUser
-              ? `<div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI AI" /></div>`
+              ? `<div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI" /></div>`
               : ""
           }
           <div class="domi-msg-bubble">
@@ -2447,51 +2782,56 @@ function domiPage() {
     .join("");
 
   return `
-    <div class="domi-chat-wrapper">
-      <div class="domi-chat-header">
-        <div class="domi-header-left">
-          <img src="/domi.png" class="domi-header-mascot" alt="DOMI Mascot" />
-          <div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <h2 style="font-size:1.25rem;">DOMI AI Assistant</h2>
-              <span class="badge badge-success" style="font-size:0.6875rem;">Online · Unlimited</span>
+    <div class="domi-fullscreen-shell">
+      <!-- Left: Chat conversation stream -->
+      <div class="domi-chat-pane">
+        <header class="domi-chat-topbar">
+          <div class="domi-brand-row">
+            <div class="brand-mascot-badge">
+              <img src="/domi.png" alt="DOMI Mascot" class="brand-mascot-img" />
             </div>
-            <p style="font-size:0.8125rem; color:var(--text-secondary); margin-top:2px;">
-              Your 24/7 Tuguegarao housing companion · Powered by real verified listings
-            </p>
+            <div>
+              <h2 style="font-size:1.125rem; font-weight:800; color:var(--text-main); margin:0;">DOMI Housing Assistant</h2>
+              <span style="font-size:0.75rem; color:var(--success); font-weight:600; display:flex; align-items:center; gap:4px;">
+                <span style="width:6px; height:6px; border-radius:50%; background:var(--success); display:inline-block;"></span>
+                Room search help, budgets, and message drafts
+              </span>
+            </div>
           </div>
+          <button class="button outline small" data-action="fullscreen">Full screen</button><button class="button outline small" data-action="clear-domi" title="Reset chat history">
+            ${icon("trash-2")} Reset
+          </button>
+        </header>
+
+        <div class="domi-prompt-chips">
+          <button class="domi-chip" data-ask="Find rooms under ₱3,000">💰 Under ₱3,000</button>
+          <button class="domi-chip" data-ask="Dorms near CSU Carig">🎓 Near CSU Carig</button>
+          <button class="domi-chip" data-ask="Boarding houses near USL and SPUP">📍 Near USL / SPUP</button>
+          <button class="domi-chip" data-ask="Places with Wi-Fi and air conditioning">📶 Wi-Fi & AC</button>
+          <button class="domi-chip" data-ask="What are typical deposit and advance rates?">📋 Deposit & Advance</button>
+          <button class="domi-chip" data-ask="Draft a polite inquiry message to a landlord">✉️ Draft Message</button>
+          <button class="domi-chip" data-ask="How to avoid housing scams in Tuguegarao?">🛡️ Anti-Scam Tips</button>
         </div>
-        <button class="button outline small" data-action="clear-domi" title="Reset chat history">
-          ${icon("trash-2")} Reset
-        </button>
+
+        <div id="domi-chat-stream" class="domi-chat-messages">
+          ${messagesHtml}
+        </div>
+
+        <form id="domi-chat-form" class="domi-composer">
+          <input
+            name="question"
+            id="domi-chat-input"
+            placeholder="Ask DOMI anything about rooms, budgets, or areas in Tuguegarao..."
+            required
+            maxlength="1000"
+            autocomplete="off"
+          />
+          <button class="button primary" type="submit" aria-label="Send question">
+            ${icon("send")} <span>Send</span>
+          </button>
+        </form>
       </div>
 
-      <div class="domi-prompt-chips">
-        <button class="domi-chip" data-ask="Find rooms under ₱3,000">💰 Under ₱3,000</button>
-        <button class="domi-chip" data-ask="Dorms near CSU Carig">🎓 Near CSU Carig</button>
-        <button class="domi-chip" data-ask="Boarding houses near USL and SPUP">📍 Near USL / SPUP</button>
-        <button class="domi-chip" data-ask="Places with Wi-Fi and air conditioning">📶 Wi-Fi & AC</button>
-        <button class="domi-chip" data-ask="What are typical deposit and advance rates?">📋 Deposit & Advance</button>
-        <button class="domi-chip" data-ask="Draft a polite inquiry message to a landlord">✉️ Draft Message</button>
-        <button class="domi-chip" data-ask="How to avoid housing scams in Tuguegarao?">🛡️ Anti-Scam Tips</button>
-      </div>
-
-      <div id="domi-chat-stream" class="domi-chat-messages">
-        ${messagesHtml}
-      </div>
-
-      <form id="domi-chat-form" class="domi-composer">
-        <input
-          name="question"
-          id="domi-chat-input"
-          placeholder="Ask DOMI anything about rooms, budgets, or landlords in Tuguegarao..."
-          required
-          autocomplete="off"
-        />
-        <button class="button primary" type="submit" aria-label="Send question">
-          ${icon("sparkles")} <span>Send</span>
-        </button>
-      </form>
     </div>
   `;
 }
@@ -2516,7 +2856,7 @@ async function loadListings(more = false) {
     const res = await api.publicProperties(more ? state.cursor : null);
     state.properties = more ? [...state.properties, ...res.items] : res.items;
     state.cursor = res.cursor;
-    state.more = Boolean(res.cursor);
+    state.more = res.more;
     state.loaded = true;
     state.syncedAt = Date.now();
   } catch (e) {
@@ -2530,8 +2870,13 @@ async function loadListings(more = false) {
    ============================================================================== */
 async function route() {
   const version = ++routeVersion;
+  startLoading();
   unsubscribe();
   unsubscribe = () => {};
+  for (const key of ["mapInstance", "domiMapInstance", "map2dInstance"]) {
+    state[key]?.remove();
+    state[key] = null;
+  }
 
   if (map) {
     map.remove();
@@ -2582,6 +2927,51 @@ async function route() {
   }
 
   let innerHTML = "";
+  const isAsyncRoute = [
+    "dashboard",
+    "properties",
+    "rooms",
+    "messages",
+    "favorites",
+    "admin",
+    "property",
+    "notifications",
+    "profile",
+    "add-property",
+    "edit-property",
+  ].includes(page) || (page === "map" && api.configured && navigator.onLine);
+
+  const existingMain = $("#main");
+  if (existingMain && isAsyncRoute) {
+    existingMain.innerHTML = `<div class="domi-route-loader-stage" style="min-height:55vh; display:flex; align-items:center; justify-content:center;">${domiLoaderHtml("page")}</div>`;
+  }
+
+  let routeTimeoutId = setTimeout(() => {
+    if (version === routeVersion && !innerHTML) {
+      console.warn(`Route ${page} timed out`);
+      stopLoading();
+      forceStopAllLoading();
+      const target = $("#main") || $("#app");
+      if (target) {
+        target.innerHTML = `
+          <div style="min-height:55vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 16px; text-align:center;">
+            <div class="brand-mascot-badge" style="width:72px; height:72px; margin-bottom:16px;">
+              <img src="/domi.png" alt="DOMI" class="brand-mascot-img" />
+            </div>
+            <h3 style="margin:0 0 8px; font-size:1.25rem; font-weight:700; color:var(--text-main);">Loading took longer than expected</h3>
+            <p style="color:var(--text-secondary); max-width:380px; margin-bottom:20px; font-size:0.875rem;">
+              The network is taking longer to respond. Tap retry to load this page again.
+            </p>
+            <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+              <button class="button primary" data-action="retry">Try Again</button>
+              <a href="#/home" class="button outline">Back to Home</a>
+            </div>
+          </div>
+        `;
+        refreshIcons();
+      }
+    }
+  }, 12000);
 
   try {
     switch (page) {
@@ -2590,6 +2980,10 @@ async function route() {
         break;
       case "search":
       case "map":
+        if (page === "map" && api.configured && navigator.onLine) {
+          state.properties = await allPublishedListings(api.publicProperties);
+          state.more = false;
+        }
         innerHTML = searchPage(page === "map");
         break;
       case "login":
@@ -2613,10 +3007,7 @@ async function route() {
         break;
       case "add-property":
       case "edit-property":
-        innerHTML =
-          api.profile?.role === "landlord"
-            ? propertyForm(id ? await api.getProperty(id) : {})
-            : empty("Landlord account required", "A landlord/owner account is required to list properties.");
+        innerHTML = propertyForm(id ? await api.getProperty(id) : {});
         break;
       case "rooms":
         innerHTML = await roomsPage(id);
@@ -2669,21 +3060,57 @@ async function route() {
     // Render into appropriate Shell
     if (isAuth) {
       $("#app").innerHTML = authLayout(innerHTML);
-    } else if (isPublic && !api.currentUser) {
+    } else if (["home", "about", "privacy", "terms"].includes(page) || (isPublic && !api.currentUser)) {
       $("#app").innerHTML = publicLayout(innerHTML);
     } else {
       $("#app").innerHTML = appLayout(innerHTML);
     }
 
+    document.body.dataset.page = page;
     refreshIcons();
+    stopLoading();
 
     if (page === "domi") {
       const stream = $("#domi-chat-stream");
       if (stream) stream.scrollTop = stream.scrollHeight;
       $("#domi-chat-input")?.focus();
+
     }
 
-    if (page === "map") await mountMap();
+    if (page === "map") {
+      try { await mountMap(); } catch { await mountMapFallback($("#map")); }
+    }
+
+    if (page === "add-property" || page === "edit-property") {
+      const pickerMount = $("#property-map-picker-mount");
+      if (pickerMount) {
+        const form = $("#property-form");
+        const latInput = $("#property-lat");
+        const lngInput = $("#property-lng");
+        const confirmedInput = $("#property-location-confirmed");
+        const barangaySelect = $("#property-barangay-select");
+        const addressInput = form?.querySelector('input[name="address"]');
+
+        mountPropertyMapPicker(pickerMount, {
+          initialLat: latInput?.value ? Number(latInput.value) : null,
+          initialLng: lngInput?.value ? Number(lngInput.value) : null,
+          initialBarangay: barangaySelect?.value || "",
+          initialAddress: addressInput?.value || "",
+          onLocationConfirmed: ({ lat, lng, address, barangay }) => {
+            if (latInput) latInput.value = lat;
+            if (lngInput) lngInput.value = lng;
+            if (confirmedInput) confirmedInput.value = "true";
+            if (barangaySelect && barangay && (!barangaySelect.value || barangaySelect.value === "Select Barangay...")) {
+              barangaySelect.value = barangay;
+            }
+            if (addressInput && !addressInput.value && address) {
+              addressInput.value = address;
+            }
+          },
+          notify: toast
+        });
+      }
+    }
 
     // Messages listeners setup
     if (page === "messages" && state.chat) {
@@ -2719,21 +3146,87 @@ async function route() {
         .catch(() => {});
       unsubscribe = () => stopMessages();
     }
+    clearTimeout(routeTimeoutId);
   } catch (err) {
+    clearTimeout(routeTimeoutId);
+    stopLoading();
     if (version === routeVersion) {
       if (err.message?.includes("sign in")) {
         location.hash = "/login";
-        toast("Please sign in to continue.");
+        toast("Please log in to continue.");
         return;
       }
-      $("#app").innerHTML = `<div style="padding:40px; text-align:center;">${empty("Error loading page", e(err.message), button("Try Again", "retry"))}</div>`;
-      refreshIcons();
+      const target = $("#main") || $("#app");
+      if (target) {
+        target.innerHTML = `<div style="padding:40px; text-align:center;">${empty("Error loading page", e(err.message), button("Try Again", "retry") + `<a class="button outline" href="#/home">Back to home</a>`)}</div>`;
+        refreshIcons();
+      }
     }
+  } finally {
+    clearTimeout(routeTimeoutId);
   }
 }
 
+const FAST_OSM_STYLE = {
+  version: 8,
+  sources: {
+    "osm-tiles": {
+      type: "raster",
+      tiles: [
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      ],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors",
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    {
+      id: "osm-tiles-layer",
+      type: "raster",
+      source: "osm-tiles",
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+};
+
 let currentMapPopup = null;
 let activeMarkerEl = null;
+
+function attachMapStatus(instance, container) {
+  const notice = document.createElement("div");
+  notice.className = "map-unavailable";
+  notice.setAttribute("role", "status");
+  notice.textContent = "Loading map tiles…";
+  container.append(notice);
+  const timeout = setTimeout(() => { notice.textContent = "Map tiles are taking longer than expected. Check your connection or use Explore Rooms."; }, 12000);
+  instance.on("load", () => { clearTimeout(timeout); notice.remove(); const label = $("#domi-3d-status-text"); if (label) label.textContent = "Map loaded · pins use saved coordinates"; });
+  instance.on("error", () => { notice.textContent = "Some map tiles could not load. Check your connection or use Explore Rooms."; if (!notice.isConnected) container.append(notice); });
+  instance.on("remove", () => clearTimeout(timeout));
+}
+
+async function mountMapFallback(container) {
+  if (!container?.isConnected) return;
+  const { mountRasterMap } = await import("./map2d");
+  if (!container.isConnected) return;
+  state.map2dInstance = mountRasterMap(container, {
+    items: filterProperties(state.properties, state.filters), coordinates: getPropertyCoordinates, escape: e, notify: toast,
+    onFilter: type => { state.filters.type = type; route(); },
+    onVacant: () => { state.filters.vacant = !state.filters.vacant; route(); },
+  });
+  const label = $("#domi-3d-status-text");
+  if (label) label.textContent = "Map explorer · 2D view";
+}
+
+function addBuildingLayer(map) {
+  const label = map.getStyle().layers.find(layer => layer.type === "symbol" && layer.layout?.["text-field"]);
+  map.addSource("dormpath-buildings", { type: "vector", url: "https://tiles.openfreemap.org/planet" });
+  map.addLayer({ id: "dormpath-buildings-3d", type: "fill-extrusion", source: "dormpath-buildings", "source-layer": "building", minzoom: 14,
+    filter: ["!=", ["get", "hide_3d"], true],
+    paint: { "fill-extrusion-color": "#c1cbdc", "fill-extrusion-height": ["coalesce", ["get", "render_height"], 0], "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0], "fill-extrusion-opacity": 0.85 }
+  }, label?.id);
+}
 
 async function mountMap() {
   const mapContainer = $("#map");
@@ -2749,75 +3242,32 @@ async function mountMap() {
     state.mapInstance = null;
   }
 
-  // Initialize MapLibre GL 3D Map
-  const map = new maplibregl.Map({
+  const { Map: MapLibreMap, Marker: MapLibreMarker, Popup: MapLibrePopup } = getMapLibre();
+  if (!MapLibreMap) {
+    return mountMapFallback(mapContainer);
+  }
+
+  // Initialize MapLibre GL 3D Map with instant OSM tiles
+  const map = new MapLibreMap({
     container: "map",
-    style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+    style: "https://tiles.openfreemap.org/styles/bright",
     center: TUGUEGARAO_CENTER,
-    zoom: 14.8,
-    pitch: 55, // 3D tilt
-    bearing: -15, // dynamic 3D angle
-    maxPitch: 75,
-    antialias: true,
+    zoom: 14.5,
+    pitch: 0, // Clean 2D top-down map view
+    bearing: 0,
+    canvasContextAttributes: { antialias: true },
   });
 
   state.mapInstance = map;
+  attachMapStatus(map, mapContainer);
 
-  // Add 3D Extruded Buildings Layer when vector tiles load
   map.on("load", () => {
-    try {
-      const layers = map.getStyle()?.layers || [];
-      let labelLayerId;
-      for (let i = 0; i < layers.length; i++) {
-        if (layers[i].type === "symbol" && layers[i].layout && layers[i].layout["text-field"]) {
-          labelLayerId = layers[i].id;
-          break;
-        }
-      }
-
-      // Find building source layer in Carto Voyager
-      const buildingLayer = layers.find((l) => l["source-layer"] === "building");
-      if (buildingLayer && !map.getLayer("3d-buildings")) {
-        map.addLayer(
-          {
-            id: "3d-buildings",
-            source: buildingLayer.source,
-            "source-layer": "building",
-            type: "fill-extrusion",
-            minzoom: 14,
-            paint: {
-              "fill-extrusion-color": [
-                "interpolate",
-                ["linear"],
-                ["get", "render_height"],
-                0, "#e2e8f0",
-                20, "#cbd5e1",
-                50, "#94a3b8",
-              ],
-              "fill-extrusion-height": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                14, 0,
-                15.05, ["coalesce", ["get", "render_height"], 12],
-              ],
-              "fill-extrusion-base": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                14, 0,
-                15.05, ["coalesce", ["get", "render_min_height"], 0],
-              ],
-              "fill-extrusion-opacity": 0.8,
-            },
-          },
-          labelLayerId,
-        );
-      }
-    } catch (err) {
-      console.warn("3D buildings layer setup:", err);
-    }
+    addBuildingLayer(map);
+    map.resize();
   });
+  setTimeout(() => map.resize(), 50);
+  setTimeout(() => map.resize(), 200);
+  setTimeout(() => map.resize(), 500);
 
   // Collect properties filtered by active criteria
   const items = filterProperties(state.properties, state.filters);
@@ -2833,7 +3283,7 @@ async function mountMap() {
     el.dataset.propertyId = p.id;
     el.innerHTML = `
       <div class="map3d-pill">
-        <span class="map3d-currency">₱</span>${Number(p.rent || 0).toLocaleString()}
+        <span class="map3d-currency">₱</span>${Number(p.minPrice || 0).toLocaleString()}
         <span class="map3d-dot" style="background:${p.available > 0 ? "#10b981" : "#94a3b8"};"></span>
       </div>
       <div class="map3d-arrow"></div>
@@ -2841,7 +3291,7 @@ async function mountMap() {
 
     const popupHTML = `
       <div class="map3d-popup-card">
-        <img src="${p.photos?.[0] || "/logo.png"}" class="map3d-popup-thumb" alt="${e(p.title)}" onerror="this.src='/logo.png'">
+        <img src="${e(p.photos?.[0] || "/domi.png")}" class="map3d-popup-thumb" alt="${e(p.title)}" onerror="this.onerror=null;this.src='/domi.png'">
         <div class="map3d-popup-body">
           <span class="badge ${p.available > 0 ? "badge-success" : "badge-subtle"}" style="align-self:flex-start; font-size:0.6875rem;">
             ${p.available > 0 ? `${p.available} space(s) available` : "Fully occupied"}
@@ -2851,7 +3301,7 @@ async function mountMap() {
           <div class="map3d-popup-footer">
             <div>
               <div style="font-size:0.6875rem; color:var(--text-muted);">Monthly Rent</div>
-              <div class="map3d-popup-price">₱${Number(p.rent || 0).toLocaleString()}<span style="font-size:0.6875rem; font-weight:500; color:var(--text-secondary);">/mo</span></div>
+              <div class="map3d-popup-price">₱${Number(p.minPrice || 0).toLocaleString()}<span style="font-size:0.6875rem; font-weight:500; color:var(--text-secondary);">/mo</span></div>
             </div>
             <a href="#/property/${p.id}" class="button primary small" style="padding:6px 12px; font-size:0.75rem;">
               View Details ${icon("arrow-right")}
@@ -2861,14 +3311,14 @@ async function mountMap() {
       </div>
     `;
 
-    const popup = new maplibregl.Popup({
+    const popup = new MapLibrePopup({
       offset: 36,
       closeButton: true,
       closeOnClick: false,
       maxWidth: "300px",
     }).setHTML(popupHTML);
 
-    const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
+    const marker = new MapLibreMarker({ element: el, anchor: "bottom" })
       .setLngLat(coords)
       .setPopup(popup)
       .addTo(map);
@@ -2880,9 +3330,15 @@ async function mountMap() {
     });
   });
 
+  if (markers.size) {
+    const bounds = new maplibregl.LngLatBounds();
+    markers.forEach(entry => bounds.extend(entry.coords));
+    map.fitBounds(bounds, { padding:70, maxZoom:16, duration:0 });
+  }
+
   function focusPropertyOnMap(id) {
     const entry = markers.get(id);
-    if (!entry) return;
+    if (!entry) { toast("No saved map location. Contact the owner through the listing details."); return; }
 
     if (activeMarkerEl) activeMarkerEl.classList.remove("active");
     entry.element.classList.add("active");
@@ -2891,14 +3347,14 @@ async function mountMap() {
     if (currentMapPopup && currentMapPopup.isOpen()) {
       currentMapPopup.remove();
     }
-    entry.popup.addTo(map);
+    entry.popup.setLngLat(entry.coords).addTo(map);
     currentMapPopup = entry.popup;
 
     map.flyTo({
       center: entry.coords,
       zoom: 16.5,
-      pitch: 60,
-      bearing: map.getBearing(),
+      pitch: 0,
+      bearing: 0,
       speed: 1.2,
       curve: 1.4,
       essential: true,
@@ -2924,17 +3380,8 @@ async function mountMap() {
   });
 
   // Floating map controls
-  $("#map3d-tilt-toggle")?.addEventListener("click", (evt) => {
-    const btn = evt.currentTarget;
-    const currentPitch = map.getPitch();
-    const targetPitch = currentPitch > 25 ? 0 : 58;
-    map.easeTo({ pitch: targetPitch, duration: 800 });
-    btn.classList.toggle("active", targetPitch > 0);
-    btn.innerText = targetPitch > 0 ? "3D" : "2D";
-  });
-
   $("#map3d-compass-btn")?.addEventListener("click", () => {
-    map.easeTo({ bearing: 0, pitch: 55, duration: 600 });
+    map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
   });
 
   $("#map3d-locate-btn")?.addEventListener("click", () => {
@@ -2992,6 +3439,124 @@ async function mountMap() {
   });
 }
 
+async function askDomi(text) {
+  if (!text?.trim() || state.domiBusy) return;
+  if (text.length > 1000) { toast("Keep questions under 1,000 characters."); return; }
+  state.domiBusy = true;
+  state.domiHistory = state.domiHistory.slice(-38);
+  const q = text.trim();
+  const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  state.domiHistory.push({ role: "user", text: q, time: now });
+
+  const stream = $("#domi-chat-stream");
+  const renderChat = (isThinking = false) => {
+    if (!stream) return;
+    let html = state.domiHistory
+      .map((m) => {
+        const isUser = m.role === "user";
+        return `
+          <div class="domi-msg ${isUser ? "user" : "domi"}">
+            ${!isUser ? `<div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI" /></div>` : ""}
+            <div class="domi-msg-bubble">
+              <div class="domi-msg-text">${e(m.text)}</div>
+              <span class="domi-msg-time">${e(m.time)}</span>
+            </div>
+            ${isUser ? `<div class="domi-msg-avatar user-avatar">${(api.profile?.name || "U")[0].toUpperCase()}</div>` : ""}
+          </div>
+        `;
+      })
+      .join("");
+
+    if (isThinking) {
+      html += `
+        <div class="domi-msg domi" id="domi-thinking-row">
+          <div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI" /></div>
+          <div class="domi-msg-bubble" style="display:flex; align-items:center; gap:8px;">
+            <span class="domi-thinking-dots"><span></span><span></span><span></span></span>
+            <span style="font-size:0.8125rem; color:var(--text-secondary); font-weight:500;">DOMI is checking the loaded listings...</span>
+          </div>
+        </div>
+      `;
+    }
+    stream.innerHTML = html;
+    stream.scrollTop = stream.scrollHeight;
+  };
+
+  renderChat(true);
+
+  // Brief natural thinking delay
+  await new Promise((r) => setTimeout(r, 700));
+
+  const reply = domiReply(q, state.properties);
+  const finishTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  state.domiHistory.push({ role: "domi", text: reply, time: finishTime });
+
+
+  renderChat(false);
+  state.domiBusy = false;
+  $("#domi-chat-input")?.focus();
+}
+
+// Standards-based PWA installation
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  toast("DormPath is installed! You can launch it directly from your home screen.");
+});
+
+function openInstallModal() {
+  modal(`
+    <div class="install-modal-shell" style="padding:4px 0;">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px;">
+        <div class="brand-logo-emblem" style="width:48px; height:48px; flex-shrink:0;">
+          <img src="/domi-app-icon.png" alt="" class="brand-logo-image">
+        </div>
+        <div>
+          <h3 style="margin:0 0 2px; font-size:1.25rem; font-weight:800; color:var(--text-main);">Install DormPath App</h3>
+          <span style="font-size:0.8125rem; color:var(--text-secondary); font-weight:500;">Installable mobile web app · Tuguegarao & Peñablanca</span>
+        </div>
+      </div>
+
+      <p style="font-size:0.875rem; color:var(--text-secondary); line-height:1.55; margin-bottom:20px;">
+        Install DormPath directly on your phone or tablet for instant access, offline rooms, 60fps interactive map, and instant landlord chat without typing URLs.
+      </p>
+
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:22px;">
+        <button type="button" class="button primary large" id="btn-trigger-pwa-install" style="width:100%; justify-content:center; gap:8px; font-weight:700;">
+          ${icon("download")} <span>1-Tap Install App on Device</span>
+        </button>
+      </div>
+
+      <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:16px;">
+        <h4 style="margin:0 0 10px; font-size:0.875rem; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px;">
+          ${icon("smartphone")} How to Install:
+        </h4>
+        <ul style="margin:0; padding-left:18px; font-size:0.8125rem; color:var(--text-secondary); line-height:1.65;">
+          <li><strong>Android (Chrome / Samsung / Brave):</strong> Tap <strong>"1-Tap Install"</strong> above, or tap the browser menu (<strong>⋮</strong> three dots) and tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
+          <li><strong>iPhone / iPad (Safari):</strong> Tap the <strong>Share</strong> button (box with up-arrow) at the bottom, then tap <strong>"Add to Home Screen"</strong>.</li>
+        </ul>
+      </div>
+    </div>
+  `);
+
+  $("#btn-trigger-pwa-install")?.addEventListener("click", async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice.catch(() => null);
+      if (choice?.outcome === "accepted") {
+        toast("Installing DormPath to your phone...");
+      }
+      deferredInstallPrompt = null;
+    } else {
+      toast("To install on Android: Tap ⋮ in your browser's top-right corner and select 'Install app' or 'Add to Home screen'.");
+    }
+  });
+}
+
 /* ==============================================================================
    GLOBAL EVENT DELEGATION
    ============================================================================== */
@@ -2999,16 +3564,28 @@ document.addEventListener("click", async (event) => {
   const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], .domi-chip");
   if (!el) return;
 
+  // Install PWA Trigger
+  if (el.dataset.action === "install-pwa") {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then((choice) => {
+        if (choice?.outcome === "accepted") {
+          toast("Installing DormPath to your phone...");
+        }
+        deferredInstallPrompt = null;
+      }).catch(() => {});
+    }
+    openInstallModal();
+    return;
+  }
+
   // DOMI prompt chip clicked
   const chip = el.closest(".domi-chip");
   if (chip) {
     const q = chip.dataset.ask;
     const inp = $("#domi-chat-input");
-    if (inp) {
-      inp.value = q;
-      inp.focus();
-      $("#domi-chat-form")?.requestSubmit();
-    }
+    if (inp) inp.value = q;
+    await askDomi(q);
     return;
   }
 
@@ -3115,11 +3692,42 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  // Admin Verification Toggle (true/false)
+  if (el.dataset.reviewLandlord) {
+    const [uid, status] = el.dataset.reviewLandlord.split(":");
+    if (status === "approved") {
+      try {
+        await api.reviewLandlordApplication(uid, "approved");
+        toast("Permit application approved. Landlord publishing access is now active.");
+        route();
+      } catch (err) {
+        toast(err.message);
+      }
+    } else {
+      modal(`
+        <form id="admin-landlord-review-form">
+          <h2>Request permit corrections</h2>
+          <input type="hidden" name="uid" value="${e(uid)}">
+          <label>Missing fields (comma-separated)
+            <input name="missingItems" required maxlength="300" placeholder="businessPermitNumber, fireSafetyExpires">
+          </label>
+          <label>Instructions for the landlord
+            <textarea name="reviewNotes" required maxlength="1000" rows="4" placeholder="Explain exactly what must be corrected."></textarea>
+          </label>
+          <button class="button primary full" type="submit">Send correction request</button>
+        </form>`);
+    }
+    return;
+  }
+
+  // Legacy verification can only be revoked here. Approval is performed from Permit Reviews.
   if (el.dataset.verify) {
     const parts = el.dataset.verify.split(":");
     const uid = parts[0];
     const isVerifying = parts[1] !== "false";
+    if (isVerifying) {
+      toast("Open Permit Reviews and approve a complete application instead.");
+      return;
+    }
     try {
       await api.moderate("users", uid, { verified: isVerifying });
       toast(isVerifying ? "Owner verified successfully!" : "Verification badge revoked.");
@@ -3155,8 +3763,8 @@ document.addEventListener("click", async (event) => {
       const disabled = card.dataset.disabled === "true";
       let show = true;
       if (filter === "landlord") show = role === "landlord";
-      else if (filter === "student") show = role === "student";
-      else if (filter === "unverified") show = role === "landlord" && !verified;
+      else if (filter === "tenant") show = role !== "landlord";
+      else if (filter === "verified") show = role === "landlord" && verified;
       else if (filter === "suspended") show = disabled;
       card.style.display = show ? "" : "none";
     });
@@ -3176,17 +3784,75 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  // Report Listing
-  if (el.dataset.report) {
-    const propId = el.dataset.report;
+  // Report Listing or Landlord (from listing, chat, or tenant dashboard)
+  if (el.dataset.report || el.dataset.action === "report-landlord-direct") {
+    const propId = el.dataset.report || "";
+    let propertySelectHtml = "";
+    if (!propId) {
+      const userConvs = await api.conversations().catch(() => []);
+      const userFavs = await api.favorites().catch(() => []);
+      const options = [];
+      const seen = new Set();
+      for (const c of userConvs) {
+        if (c.propertyId && !seen.has(c.propertyId)) {
+          seen.add(c.propertyId);
+          options.push(`<option value="${e(c.propertyId)}">Listing: ${e(c.title || c.propertyId)}</option>`);
+        }
+      }
+      for (const f of userFavs) {
+        if (f.id && !seen.has(f.id)) {
+          seen.add(f.id);
+          options.push(`<option value="${e(f.id)}">Saved Place: ${e(f.title || f.id)}</option>`);
+        }
+      }
+      if (options.length > 0) {
+        propertySelectHtml = `
+          <label style="margin-bottom:12px;">Select Landlord / Listing
+            <select name="propertyId" required style="width:100%; padding:10px 12px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); font-size:0.875rem;">
+              <option value="">-- Choose a property or landlord thread --</option>
+              ${options.join("")}
+            </select>
+          </label>
+        `;
+      } else {
+        toast("To report a landlord, open their listing or message thread and tap 'Report Landlord'.");
+        return;
+      }
+    }
+
     modal(`
       <form id="report-form" data-property="${e(propId)}">
-        <h3>Report Listing</h3>
-        <p style="font-size:0.875rem; margin-bottom:12px; color:var(--text-secondary);">Help keep DormPath safe. Please specify the issue with this listing.</p>
-        <label>Reason
-          <textarea name="reason" required placeholder="e.g. Inaccurate photos, false pricing, suspicious deposit request..." style="min-height:100px;"></textarea>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="color:var(--danger); display:inline-flex;">${icon("flag")}</span>
+          <h3 style="margin:0; font-size:1.25rem;">Report Landlord or Property</h3>
+        </div>
+        <p style="font-size:0.875rem; margin-bottom:16px; color:var(--text-secondary); line-height:1.5;">
+          DormPath enforces community standards to ensure tenant safety and respect. If a landlord is rude, disrespectful, demanding cash deposits without a receipt, or not nice, report them directly for administrator review.
+        </p>
+
+        ${propertySelectHtml}
+
+        <label style="margin-top:10px;">Reason for Report
+          <select name="category" required style="width:100%; padding:10px 12px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); font-size:0.875rem;">
+            <option value="Landlord is rude or not nice">Landlord is rude, disrespectful, or not nice</option>
+            <option value="Harassment or threatening conduct">Harassment, intimidation, or safety concern</option>
+            <option value="Demanding unauthorized fees or deposits">Demanding unauthorized deposit or hidden charges</option>
+            <option value="Inaccurate listing or unavailable vacancy">Inaccurate photos, false pricing, or unavailable room</option>
+            <option value="Privacy invasion or unreasonable house rules">Privacy invasion or unreasonable house rules</option>
+            <option value="Other tenancy safety issue">Other tenancy or community policy violation</option>
+          </select>
         </label>
-        <button class="button primary full" style="margin-top:12px;">Submit Report</button>
+
+        <label style="margin-top:14px;">Describe what happened
+          <textarea name="details" required minlength="10" maxlength="1800" placeholder="Please describe what the landlord said or did, and any relevant dates or conversation details..." style="min-height:110px; width:100%; padding:10px 12px; margin-top:4px; font-size:0.875rem; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main);"></textarea>
+        </label>
+
+        <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+          <button type="button" class="button outline small" data-action="close-modal">Cancel</button>
+          <button type="submit" class="button primary small" style="background:var(--danger); border-color:var(--danger);">
+            ${icon("flag")} Submit Report
+          </button>
+        </div>
       </form>
     `);
     return;
@@ -3221,6 +3887,8 @@ document.addEventListener("click", async (event) => {
       const dark = document.documentElement.dataset.theme !== "dark";
       document.documentElement.dataset.theme = dark ? "dark" : "light";
       localStorage.setItem("theme", dark ? "dark" : "light");
+      toast(dark ? "Dark mode activated 🌙" : "Light mode activated ☀️");
+      route();
       break;
     }
     case "toggle-password": {
@@ -3235,6 +3903,11 @@ document.addEventListener("click", async (event) => {
     }
     case "trigger-pfp":
       $("#pfp-file-input")?.click();
+      break;
+    case "logout-to-register-landlord":
+      await api.logout();
+      state.selectedRole = "landlord";
+      location.hash = "/register";
       break;
     case "remove-pfp":
       try {
@@ -3262,20 +3935,180 @@ document.addEventListener("click", async (event) => {
       }
       break;
     case "google-auth": {
+      if (el.disabled) break;
+      if (location.hash.includes("register") && !$('input[name="consent"]')?.checked) { toast("Read and accept the privacy policy and terms first."); break; }
+      el.disabled = true;
+      startGlobalLoading(true);
       try {
-        await api.loginWithGoogle(state.selectedRole || "student");
+        await api.loginWithGoogle(state.selectedRole || "tenant", Boolean($('input[name="remember"]')?.checked));
         location.hash = "/dashboard";
       } catch (err) {
         const msg = formatAuthError(err);
         if (msg) toast(msg);
+      } finally {
+        el.disabled = false;
+        stopGlobalLoading();
       }
       break;
     }
-    case "logout":
-      await api.logout();
-      state.favorites = [];
-      location.hash = "/home";
+    case "privacy-dialog":
+      modal(`<div class="legal-dialog">${privacyPage()}</div>`);
       break;
+    case "terms-dialog":
+      modal(`<div class="legal-dialog">${termsPage()}</div>`);
+      break;
+    case "resend-verification": {
+      const form = $("#login");
+      if (!form?.reportValidity()) break;
+      el.disabled = true;
+      try { await api.resendVerificationEmail(form.email.value, form.password.value); toast("Verification email sent. Check your inbox and spam folder."); }
+      catch (err) { toast(formatAuthError(err)); }
+      finally { el.disabled = false; }
+      break;
+    }
+    case "fullscreen":
+      try { if (document.fullscreenElement) await document.exitFullscreen(); else await $("main").requestFullscreen(); } catch { toast("Full screen is unavailable in this browser."); }
+      break;
+    case "logout":
+      startGlobalLoading(true);
+      try {
+        await api.logout();
+        state.favorites = [];
+        location.hash = "/home";
+      } finally {
+        stopGlobalLoading();
+      }
+      break;
+    case "open-notifications": {
+      modal(`
+        <div class="notifications-popup-modal">
+          <div class="notifications-header">
+            <h3>${icon("bell")} Recent Alerts & Updates</h3>
+          </div>
+          <div id="notifications-popup-content">
+            ${domiLoaderHtml("section")}
+          </div>
+        </div>
+      `);
+      try {
+        const items = await api.notifications();
+        const container = $("#notifications-popup-content");
+        if (!container) return;
+        if (!items || items.length === 0) {
+          container.innerHTML = `
+            <div style="text-align:center; padding:28px 12px; color:var(--text-muted);">
+              <div style="font-size:2.2rem; margin-bottom:8px;">🔔</div>
+              <strong style="color:var(--text-main); font-size:1rem;">All caught up!</strong>
+              <p style="font-size:0.8125rem; margin-top:4px;">No new alerts or room inquiry notifications right now.</p>
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="notifications-list">
+              ${items
+                .map(
+                  (n) => `
+                <div class="notification-item-card">
+                  <div class="notification-icon-box">${icon("bell")}</div>
+                  <div class="notification-content">
+                    <div class="notification-title">${e(n.title || n.message || "Notification")}</div>
+                    <div class="notification-time">${date(n.createdAt)}</div>
+                  </div>
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+          `;
+        }
+        refreshIcons();
+      } catch (err) {
+        const container = $("#notifications-popup-content");
+        if (container) {
+          container.innerHTML = `<p style="color:var(--danger); font-size:0.875rem; text-align:center;">${e(err.message || "Failed to load notifications.")}</p>`;
+        }
+      }
+      break;
+    }
+    case "toggle-mobile-drawer": {
+      const isLandlord = api.profile?.role === "landlord";
+      const roleLabel = isLandlord ? "Landlord / Owner" : "User / Tenant";
+      modal(`
+        <div style="padding:4px 0;">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--border-light);">
+            <div class="sidebar-avatar" style="width:48px; height:48px; font-size:1.25rem;">
+              ${
+                api.currentUser?.photoURL || api.profile?.photoURL
+                  ? `<img src="${e(api.currentUser?.photoURL || api.profile?.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="PFP">`
+                  : (api.profile?.name || "U")[0].toUpperCase()
+              }
+            </div>
+            <div style="flex:1; min-width:0;">
+              <h3 style="margin:0; font-size:1rem; font-weight:700;">${e(api.profile?.name || "User")}</h3>
+              <span style="font-size:0.75rem; color:var(--text-muted);">${roleLabel} · Tuguegarao & Peñablanca</span>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+            <a href="#/search" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
+              ${icon("search")} Explore
+            </a>
+            <a href="#/map" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
+              ${icon("map")} Area Map
+            </a>
+            <a href="#/domi" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
+              ${icon("bot")} DOMI
+            </a>
+            <a href="#/favorites" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
+              ${icon("heart")} Saved
+            </a>
+            <a href="#/messages" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
+              ${icon("messages-square")} Chat
+            </a>
+            <button type="button" class="button outline" style="justify-content:flex-start; padding:10px 12px;" data-action="open-notifications">
+              ${icon("bell")} Alerts
+            </button>
+            ${
+              isLandlord
+                ? `
+              <a href="#/properties" class="button outline" style="justify-content:flex-start; padding:10px 12px; grid-column:span 2;" onclick="this.closest('dialog').close();">
+                ${icon("building-2")} My Properties
+              </a>
+            `
+                : ""
+            }
+            ${
+              api.isAdmin
+                ? `
+              <a href="#/admin" class="button outline" style="justify-content:flex-start; padding:10px 12px; grid-column:span 2; border-color:var(--brand-primary); color:var(--brand-primary);" onclick="this.closest('dialog').close();">
+                ${icon("shield-check")} Administrator Console
+              </a>
+            `
+                : ""
+            }
+            <a href="#/profile" class="button outline" style="justify-content:flex-start; padding:10px 12px; grid-column:span 2;" onclick="this.closest('dialog').close();">
+              ${icon("user")} Profile & Settings
+            </a>
+            <a href="#/about" class="button text-button" style="justify-content:flex-start; padding:8px 12px;" onclick="this.closest('dialog').close();">
+              ${icon("info")} Fair Housing
+            </a>
+            <a href="#/terms" class="button text-button" style="justify-content:flex-start; padding:8px 12px;" onclick="this.closest('dialog').close();">
+              ${icon("file-text")} Rules & Terms
+            </a>
+          </div>
+
+          <div style="display:flex; gap:10px; border-top:1px solid var(--border-light); padding-top:14px;">
+            <button class="button outline" style="flex:1;" data-action="theme">
+              ${icon("sun-moon")} Toggle Theme
+            </button>
+            <button class="button outline" style="flex:1; color:var(--danger); border-color:rgba(239, 68, 68, 0.3);" data-action="logout" onclick="this.closest('dialog').close();">
+              ${icon("log-out")} Log Out
+            </button>
+          </div>
+        </div>
+      `);
+      break;
+    }
     case "domi":
       location.hash = "/domi";
       break;
@@ -3283,7 +4116,7 @@ document.addEventListener("click", async (event) => {
       state.domiHistory = [
         {
           role: "domi",
-          text: "Kumusta! I am DOMI, your 24/7 AI housing companion for Tuguegarao City. Ask me anything about student boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
+          text: "Kumusta! I am DOMI, your housing guide for Tuguegarao City. Ask me anything about boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ];
@@ -3366,20 +4199,56 @@ document.addEventListener("click", async (event) => {
 document.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.target;
+  if (form.dataset.busy) return;
+  form.dataset.busy = "true";
+  form.setAttribute("aria-busy", "true");
+  const submitters = [...form.querySelectorAll('[type="submit"]')];
+  const originalButtonContents = new Map();
+  submitters.forEach((b) => {
+    originalButtonContents.set(b, b.innerHTML);
+    b.disabled = true;
+    const txt = b.textContent.trim();
+    b.innerHTML = `<span style="display:inline-flex; align-items:center; gap:8px;">${domiLoaderHtml("button")}<span>${txt || "Please wait..."}</span></span>`;
+  });
+  startLoading();
   const data = new FormData(form);
   const values = Object.fromEntries(data);
 
   try {
     switch (form.id) {
       case "login":
-        await api.login(values.email, values.password);
+        startGlobalLoading(true);
+        loginLimiter.check();
+        if ($("#captcha-status")) $("#captcha-status").textContent = "Verifying your sign-in…";
+        await api.login(values.email, values.password, data.has("remember"));
+        loginLimiter.clear();
+        try { if (data.has("remember")) localStorage.setItem("dormpath-login-preference", JSON.stringify({remember:true,email:values.email.trim()})); else localStorage.removeItem("dormpath-login-preference"); } catch {}
         location.hash = "/dashboard";
         break;
-      case "register":
+      case "register": {
         await api.register(values);
-        toast("Account created! Check your email for a verification link.");
-        location.hash = "/dashboard";
+        modal(`
+          <div style="text-align:center; padding:16px 8px;">
+            <div class="brand-mascot-badge" style="width:64px; height:64px; margin:0 auto 16px; border-radius:18px;">
+              <img src="/domi.png" alt="DOMI Mascot" style="width:48px; height:48px; object-fit:contain;" />
+            </div>
+            <h3 style="margin:0 0 8px; font-size:1.25rem; font-weight:800; color:var(--text-main);">Email Verification Required</h3>
+            <p style="color:var(--text-secondary); font-size:0.875rem; line-height:1.6; margin-bottom:20px;">
+              Your account has been created! A verification link was sent to <strong>${e(values.email)}</strong>.<br>
+              Please open the email and click the verification link before logging in.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <a href="#/login" class="button primary full" onclick="this.closest('dialog').close();">
+                Proceed to Log In
+              </a>
+              <button type="button" class="button outline full" onclick="this.closest('dialog').close();">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        `);
         break;
+      }
       case "search-form":
         state.filters = { ...state.filters, q: values.q, budget: values.budget, type: values.type };
         location.hash = "/search";
@@ -3399,6 +4268,25 @@ document.addEventListener("submit", async (event) => {
         toast("Profile updated successfully!");
         route();
         break;
+      case "landlord-application-form":
+        await api.submitLandlordApplication({
+          ...values,
+          consent: data.has("consent"),
+        });
+        toast("Permit application submitted for administrator review.");
+        route();
+        break;
+      case "admin-landlord-review-form":
+        await api.reviewLandlordApplication(
+          values.uid,
+          "changes_requested",
+          String(values.missingItems || "").split(",").map((item) => item.trim()).filter(Boolean),
+          values.reviewNotes,
+        );
+        $("#modal")?.close();
+        toast("The landlord was notified which permit details need correction.");
+        route();
+        break;
       case "change-password-form": {
         const p1 = values.newPassword;
         const p2 = values.confirmPassword;
@@ -3414,32 +4302,8 @@ document.addEventListener("submit", async (event) => {
       case "domi-chat-form": {
         const text = values.question?.trim();
         if (!text) break;
-        const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        state.domiHistory.push({ role: "user", text, time: now });
-        const reply = domiReply(text, state.properties);
-        state.domiHistory.push({ role: "domi", text: reply, time: now });
         form.reset();
-
-        const stream = $("#domi-chat-stream");
-        if (stream) {
-          stream.innerHTML = state.domiHistory
-            .map((m) => {
-              const isUser = m.role === "user";
-              return `
-                <div class="domi-msg ${isUser ? "user" : "domi"}">
-                  ${!isUser ? `<div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI AI" /></div>` : ""}
-                  <div class="domi-msg-bubble">
-                    <div class="domi-msg-text">${e(m.text)}</div>
-                    <span class="domi-msg-time">${e(m.time)}</span>
-                  </div>
-                  ${isUser ? `<div class="domi-msg-avatar user-avatar">${(api.profile?.name || "U")[0].toUpperCase()}</div>` : ""}
-                </div>
-              `;
-            })
-            .join("");
-          stream.scrollTop = stream.scrollHeight;
-        }
-        $("#domi-chat-input")?.focus();
+        await askDomi(text);
         break;
       }
       case "domi-form":
@@ -3455,29 +4319,100 @@ document.addEventListener("submit", async (event) => {
         form.reset();
         break;
       case "property-form": {
+        // 1. Strict Landlord / Admin Check
+        if ((!api.profile?.verified || api.profile?.role !== "landlord") && !api.isAdmin) {
+          toast("Administrator approval of your permit application is required before publishing properties.");
+          return;
+        }
+
+        // 2. Validate Room Types (Firestore schema strictly requires 1 <= roomTypes <= 7)
+        const roomTypes = data.getAll("roomTypes");
+        if (!roomTypes || roomTypes.length === 0) {
+          toast("Please select at least one Room Type offered.");
+          return;
+        }
+
+        // 3. Validate Required Text Fields
+        const title = values.title?.trim();
+        const address = values.address?.trim();
+        const description = values.description?.trim();
+        const utilities = values.utilities?.trim() || "Standard utilities policy.";
+        const rules = values.rules?.trim() || "Standard house rules and curfew apply.";
+        const selectedBarangay = values.barangay?.trim();
+
+        if (!title) { toast("Please enter a property title."); return; }
+        if (!selectedBarangay) { toast("Please select a barangay in Tuguegarao or Peñablanca."); return; }
+        if (!address) { toast("Please enter the complete street address."); return; }
+        if (!description) { toast("Please enter a property description."); return; }
+
+        const pendingPhotos = data.getAll("photos").filter((f) => f.size).length;
+        const keptPhotos = data.getAll("keepPhotos").length;
+        if (pendingPhotos + keptPhotos > 8) {
+          toast(`A listing can have at most 8 photos. You have ${keptPhotos} kept and ${pendingPhotos} new — remove ${pendingPhotos + keptPhotos - 8}.`);
+          return;
+        }
+
+        startGlobalLoading(true);
         const files = data.getAll("photos").filter((f) => f.size);
         const photos = data.getAll("keepPhotos");
-        for (const file of files) photos.push(await api.uploadPhoto(file));
-        const p = {
-          title: values.title.trim(),
-          barangay: values.barangay.trim(),
-          address: values.address.trim(),
-          school: values.school.trim(),
-          minPrice: Number(values.minPrice),
-          lat: Number(values.lat),
-          lng: Number(values.lng),
-          deposit: Number(values.deposit),
-          advance: Number(values.advance),
-          description: values.description.trim(),
-          utilities: values.utilities.trim(),
-          rules: values.rules.trim(),
-          roomTypes: data.getAll("roomTypes"),
-          amenities: data.getAll("amenities"),
-          photos,
-        };
-        await api.saveProperty(p, form.dataset.id || null);
-        toast("Property saved for review.");
-        location.hash = "/properties";
+        const videoFileInput = form.querySelector('input[name="videoFile"]');
+        const videoFile = videoFileInput?.files?.[0];
+
+        try {
+          if (files.length > 0) {
+            toast(`Uploading ${files.length} property photo(s)...`);
+            for (let i = 0; i < files.length; i++) {
+              const url = await api.uploadMedia(files[i]);
+              photos.push(url);
+            }
+          }
+
+          let videoUrl = form.dataset.currentVideo || "";
+          if (videoFile && videoFile.size > 0) {
+            toast("Uploading property walkthrough video...");
+            videoUrl = await api.uploadMedia(videoFile);
+          }
+
+          // Compute/read exact coordinates from interactive map picker or fallback
+          const coords = BARANGAY_COORDINATES[selectedBarangay] || [121.7270, 17.6132];
+          const latInput = form.querySelector('input[name="lat"]');
+          const lngInput = form.querySelector('input[name="lng"]');
+          const rawLat = latInput?.value ? Number(latInput.value) : (values.lat ? Number(values.lat) : Number(coords[1]));
+          const rawLng = lngInput?.value ? Number(lngInput.value) : (values.lng ? Number(values.lng) : Number(coords[0]));
+          const lat = !isNaN(rawLat) ? Math.max(-90, Math.min(90, rawLat)) : Number(coords[1]);
+          const lng = !isNaN(rawLng) ? Math.max(-180, Math.min(180, rawLng)) : Number(coords[0]);
+
+          const p = {
+            title,
+            barangay: selectedBarangay,
+            address,
+            school: values.school ? values.school.trim() : "",
+            minPrice: Math.max(0, Math.min(1000000, Number(values.minPrice) || 0)),
+            lat,
+            lng,
+            deposit: Math.max(0, Math.min(1000000, Number(values.deposit) || 0)),
+            advance: Math.max(0, Math.min(1000000, Number(values.advance) || 0)),
+            description,
+            utilities,
+            rules,
+            roomTypes,
+            amenities: data.getAll("amenities"),
+            photos,
+            video: videoUrl,
+          };
+          await api.saveProperty(p, form.dataset.id || null);
+          toast("Property listing saved successfully.");
+          location.hash = "/properties";
+        } catch (err) {
+          console.error("Property save error:", err);
+          if (err.message?.includes("permission") || err.code === "permission-denied") {
+            toast("Permission Denied: Please ensure your account is a verified Landlord and all required fields are complete.");
+          } else {
+            toast(err.message || "Failed to save property listing.");
+          }
+        } finally {
+          stopGlobalLoading();
+        }
         break;
       }
       case "room-form":
@@ -3496,11 +4431,18 @@ document.addEventListener("submit", async (event) => {
         toast("Room saved.");
         route();
         break;
-      case "report-form":
-        await api.report(form.dataset.property, values.reason.trim());
+      case "report-form": {
+        const propId = form.dataset.property || values.propertyId;
+        if (!propId) throw Error("Please select a valid property or landlord listing.");
+        const category = values.category || "General Conduct";
+        const details = (values.details || values.reason || "").trim();
+        if (!details) throw Error("Please provide details for the safety report.");
+        const fullReason = `[${category}] ${details}`.slice(0, 1999);
+        await api.report(propId, fullReason);
         $("#modal")?.close();
-        toast("Thank you. Report submitted for administrator review.");
+        toast("Thank you. Safety report submitted for administrator review.");
         break;
+      }
       case "viewing-form":
         await api.viewing(state.chat.id, values.date.trim());
         $("#modal")?.close();
@@ -3509,24 +4451,395 @@ document.addEventListener("submit", async (event) => {
         break;
     }
   } catch (err) {
+    if (form.id === "login" && ["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/too-many-requests"].includes(err.code)) loginLimiter.fail();
+    if (err.code === "auth/unverified-email") {
+      const help = $("#verification-help"); if (help) help.hidden = false;
+      const emailField = $("#login input[name=email]"); if (emailField) emailField.value = values.email;
+      modal(`
+        <div style="text-align:center; padding:16px 8px;">
+          <div style="width:56px; height:56px; border-radius:50%; background:rgba(239,68,68,0.1); color:var(--danger); display:inline-flex; align-items:center; justify-content:center; margin-bottom:14px;">
+            ${icon("alert-circle")}
+          </div>
+          <h3 style="margin:0 0 8px; font-size:1.2rem; font-weight:800; color:var(--text-main);">Verify Your Email Address</h3>
+          <p style="color:var(--text-secondary); font-size:0.875rem; line-height:1.6; margin-bottom:20px;">
+            ${e(err.message)}
+          </p>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <button type="button" class="button primary full" onclick="this.closest('dialog').close();">
+              I Understand, I'll Check Email
+            </button>
+          </div>
+        </div>
+      `);
+      return;
+    }
     const msg = formatAuthError(err);
     if (msg) toast(msg);
+  } finally {
+    if ($("#captcha-status")) $("#captcha-status").textContent = api.appCheck ? "reCAPTCHA · automatic verification at sign-in" : "Bot protection is not configured yet";
+    delete form.dataset.busy;
+    form.removeAttribute("aria-busy");
+    submitters.forEach((b) => {
+      b.disabled = false;
+      if (originalButtonContents.has(b)) {
+        b.innerHTML = originalButtonContents.get(b);
+      }
+    });
+    stopLoading();
+    stopGlobalLoading();
   }
 });
 
-// Profile Photo Upload Change Listener
-document.addEventListener("change", async (event) => {
+// ==============================================================================
+// INTERACTIVE CIRCULAR PROFILE PHOTO CROPPER MODAL
+// ==============================================================================
+function openPhotoCropper(imageSrc) {
+  const modal = $("#modal");
+  if (!modal) return;
+
+  modal.innerHTML = `
+    <div class="cropper-modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="margin:0; font-size:1.125rem; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+          ${icon("camera")} Crop Profile Picture
+        </h3>
+        <button type="button" class="button text-button small" id="crop-modal-close" style="padding:4px 8px; font-size:1.25rem; line-height:1;" aria-label="Close">✕</button>
+      </div>
+      <p style="font-size:0.8125rem; color:var(--text-secondary); margin:0 0 14px; line-height:1.4;">
+        Drag photo to center inside the circle. Use slider or pinch/scroll to zoom.
+      </p>
+
+      <div id="crop-viewport">
+        <canvas id="crop-canvas" width="280" height="280" style="display:block; width:280px; height:280px;"></canvas>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:18px;">
+        <button type="button" class="button outline small" id="crop-zoom-out" style="width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:50%;" title="Zoom Out">
+          ${icon("minus")}
+        </button>
+        <div style="display:flex; align-items:center; gap:8px; flex:1; max-width:180px;">
+          <input type="range" id="crop-zoom-slider" min="0.6" max="3.5" step="0.02" value="1" style="width:100%; accent-color:var(--primary); cursor:pointer;">
+        </div>
+        <button type="button" class="button outline small" id="crop-zoom-in" style="width:34px; height:34px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:50%;" title="Zoom In">
+          ${icon("plus")}
+        </button>
+        <button type="button" class="button outline small" id="crop-reset-btn" style="height:34px; padding:0 10px; font-size:0.75rem;" title="Reset Center">
+          Reset
+        </button>
+      </div>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" class="button outline" id="crop-cancel-btn">
+          Cancel
+        </button>
+        <button type="button" class="button primary" id="crop-save-btn" style="min-width:130px;">
+          Crop & Save ${icon("arrow-right")}
+        </button>
+      </div>
+    </div>
+  `;
+  refreshIcons();
+  modal.showModal();
+
+  const canvas = $("#crop-canvas");
+  const ctx = canvas?.getContext("2d");
+  const slider = $("#crop-zoom-slider");
+  const viewport = $("#crop-viewport");
+
+  if (!canvas || !ctx || !viewport) return;
+
+  const W = 280;
+  const H = 280;
+  const CX = 140;
+  const CY = 140;
+  const R = 115; // 230px circle diameter inside 280px box
+
+  let img = new Image();
+  let baseScale = 1;
+  let zoom = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let initialTouchDistance = 0;
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    if (!img.complete || img.naturalWidth === 0) return;
+
+    const scale = baseScale * zoom;
+    const drawW = img.naturalWidth * scale;
+    const drawH = img.naturalHeight * scale;
+    const drawX = CX + offsetX - drawW / 2;
+    const drawY = CY + offsetY - drawH / 2;
+
+    // Draw original image
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+    // Darkened circular cutout mask
+    ctx.save();
+    ctx.fillStyle = "rgba(15, 23, 42, 0.65)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Crisp circular guide boundary
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = "rgba(0, 245, 255, 0.5)";
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function resetPosition() {
+    zoom = 1;
+    offsetX = 0;
+    offsetY = 0;
+    if (slider) slider.value = "1";
+    draw();
+  }
+
+  img.onload = () => {
+    const minD = R * 2;
+    baseScale = Math.max(minD / img.naturalWidth, minD / img.naturalHeight);
+    resetPosition();
+  };
+  img.src = imageSrc;
+
+  // Mouse Drag Events
+  viewport.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    dragStartX = e.clientX - offsetX;
+    dragStartY = e.clientY - offsetY;
+  });
+
+  const onMouseMove = (e) => {
+    if (!isDragging) return;
+    offsetX = e.clientX - dragStartX;
+    offsetY = e.clientY - dragStartY;
+    draw();
+  };
+
+  const onMouseUp = () => {
+    isDragging = false;
+  };
+
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+
+  // Touch Drag & Pinch-to-zoom Events
+  viewport.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      dragStartX = e.touches[0].clientX - offsetX;
+      dragStartY = e.touches[0].clientY - offsetY;
+    } else if (e.touches.length === 2) {
+      isDragging = false;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      initialTouchDistance = Math.hypot(dx, dy);
+    }
+  }, { passive: true });
+
+  viewport.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 1 && isDragging) {
+      offsetX = e.touches[0].clientX - dragStartX;
+      offsetY = e.touches[0].clientY - dragStartY;
+      draw();
+    } else if (e.touches.length === 2 && initialTouchDistance > 0) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const currentDistance = Math.hypot(dx, dy);
+      const factor = currentDistance / initialTouchDistance;
+      zoom = Math.min(3.5, Math.max(0.6, zoom * factor));
+      initialTouchDistance = currentDistance;
+      if (slider) slider.value = zoom.toFixed(2);
+      draw();
+    }
+  }, { passive: true });
+
+  viewport.addEventListener("touchend", () => {
+    isDragging = false;
+    initialTouchDistance = 0;
+  });
+
+  // Wheel Zoom
+  viewport.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const step = e.deltaY > 0 ? -0.05 : 0.05;
+    zoom = Math.min(3.5, Math.max(0.6, zoom + step));
+    if (slider) slider.value = zoom.toFixed(2);
+    draw();
+  }, { passive: false });
+
+  // Slider Input
+  slider?.addEventListener("input", (e) => {
+    zoom = parseFloat(e.target.value);
+    draw();
+  });
+
+  $("#crop-zoom-in")?.addEventListener("click", () => {
+    zoom = Math.min(3.5, zoom + 0.15);
+    if (slider) slider.value = zoom.toFixed(2);
+    draw();
+  });
+
+  $("#crop-zoom-out")?.addEventListener("click", () => {
+    zoom = Math.max(0.6, zoom - 0.15);
+    if (slider) slider.value = zoom.toFixed(2);
+    draw();
+  });
+
+  $("#crop-reset-btn")?.addEventListener("click", resetPosition);
+
+  const cleanupListeners = () => {
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
+
+  const closeModal = () => {
+    cleanupListeners();
+    modal.close();
+    const pfpInput = $("#pfp-file-input");
+    if (pfpInput) pfpInput.value = "";
+  };
+
+  $("#crop-modal-close")?.addEventListener("click", closeModal);
+  $("#crop-cancel-btn")?.addEventListener("click", closeModal);
+
+  // Apply & Save Cropped Photo
+  $("#crop-save-btn")?.addEventListener("click", () => {
+    if (!img.complete || img.naturalWidth === 0) return;
+
+    const exportSize = 512;
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = exportSize;
+    outCanvas.height = exportSize;
+    const outCtx = outCanvas.getContext("2d");
+
+    const previewDiameter = R * 2;
+    const scaleFactor = exportSize / previewDiameter;
+
+    const finalScale = baseScale * zoom * scaleFactor;
+    const finalW = img.naturalWidth * finalScale;
+    const finalH = img.naturalHeight * finalScale;
+    const finalCX = exportSize / 2;
+    const finalCY = exportSize / 2;
+    const finalX = finalCX + (offsetX * scaleFactor) - finalW / 2;
+    const finalY = finalCY + (offsetY * scaleFactor) - finalH / 2;
+
+    outCtx.drawImage(img, finalX, finalY, finalW, finalH);
+
+    outCanvas.toBlob(async (blob) => {
+      closeModal();
+      if (!blob) {
+        toast("Failed to process cropped photo.");
+        return;
+      }
+      startGlobalLoading(true);
+      try {
+        toast("Uploading cropped profile photo...");
+        const croppedFile = new File([blob], "profile-avatar.jpg", { type: "image/jpeg" });
+        const url = await api.uploadPhoto(croppedFile);
+        await api.saveProfile({ photoURL: url });
+        toast("Profile photo updated successfully!");
+        route();
+      } catch (err) {
+        toast(err.message || "Failed to upload photo.");
+      } finally {
+        stopGlobalLoading();
+      }
+    }, "image/jpeg", 0.92);
+  });
+}
+
+// Profile Photo File Selection Listener
+document.addEventListener("change", (event) => {
   if (event.target.id === "pfp-file-input") {
     const file = event.target.files?.[0];
     if (!file) return;
-    try {
-      toast("Uploading profile photo...");
-      const url = await api.uploadPhoto(file);
-      await api.saveProfile({ photoURL: url });
-      toast("Profile photo updated!");
-      route();
-    } catch (err) {
-      toast(err.message || "Failed to upload photo.");
+    if (!file.type.startsWith("image/")) {
+      toast("Please select an image file (JPEG, PNG, or WebP).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      openPhotoCropper(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+// Landlord Live GPS Location Capture Listener
+document.addEventListener("click", (event) => {
+  const btn = event.target.closest("#btn-capture-landlord-gps");
+  if (!btn) return;
+  if (!navigator.geolocation) {
+    toast("Geolocation is not supported by your browser.");
+    return;
+  }
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `${icon("crosshair")} <span>Detecting GPS...</span>`;
+  refreshIcons();
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = Number(pos.coords.latitude.toFixed(6));
+      const lng = Number(pos.coords.longitude.toFixed(6));
+      const latInput = $("#property-lat");
+      const lngInput = $("#property-lng");
+      if (latInput) latInput.value = lat;
+      if (lngInput) lngInput.value = lng;
+      const statusText = $("#gps-status-text");
+      if (statusText) {
+        statusText.innerHTML = `📍 <strong style="color:var(--success);">Live GPS Captured:</strong> ${lat}° N, ${lng}° E <span style="color:var(--text-muted);">(Accuracy: ±${Math.round(pos.coords.accuracy)}m)</span>`;
+      }
+      toast("Location captured from your device GPS!");
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      refreshIcons();
+    },
+    (err) => {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      refreshIcons();
+      toast(`GPS location request failed (${err.message}). Defaulting to selected barangay coordinates.`);
+      const select = $("#property-barangay-select");
+      if (select?.value && BARANGAY_COORDINATES[select.value]) {
+        const coords = BARANGAY_COORDINATES[select.value];
+        const latInput = $("#property-lat");
+        const lngInput = $("#property-lng");
+        if (latInput) latInput.value = coords[1];
+        if (lngInput) lngInput.value = coords[0];
+      }
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+  );
+});
+
+// Barangay Select Coordinate Sync Listener
+document.addEventListener("change", (event) => {
+  if (event.target.id === "property-barangay-select") {
+    const val = event.target.value;
+    if (val && BARANGAY_COORDINATES[val]) {
+      const coords = BARANGAY_COORDINATES[val];
+      const latInput = $("#property-lat");
+      const lngInput = $("#property-lng");
+      const statusText = $("#gps-status-text");
+      if (latInput) latInput.value = coords[1];
+      if (lngInput) lngInput.value = coords[0];
+      if (statusText) {
+        statusText.innerHTML = `📍 Coordinates set to <strong>${val}</strong> center (${coords[1]}° N, ${coords[0]}° E). Click button to use exact device GPS.`;
+      }
     }
   }
 });

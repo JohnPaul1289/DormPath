@@ -30,10 +30,17 @@ export default async function handler(request) {
     !preset ||
     !process.env.FIREBASE_WEB_API_KEY
   )
-    return json({ error: "Photo uploads are not configured." }, 503);
+    return json({ error: "Photo and video uploads are not configured." }, 503);
   try {
-    if (request.headers.get("content-type") !== "image/webp")
-      return json({ error: "Only compressed WebP images are accepted." }, 415);
+    const rawContentType = (request.headers.get("content-type") || "").toLowerCase();
+    const isJson = rawContentType.includes("application/json");
+    const isVideo = rawContentType.startsWith("video/") || request.headers.get("x-resource-type") === "video";
+    const isImage = rawContentType.startsWith("image/") || rawContentType === "image/webp";
+
+    if (!isJson && !isImage && !isVideo) {
+      return json({ error: "Only images (JPEG, PNG, WebP) or videos (MP4, WebM) are accepted." }, 415);
+    }
+
     // Obtain identity from Google's token verification endpoint, never decode
     // and trust an unsigned JWT payload.
     const lookup = await fetch(
@@ -49,46 +56,81 @@ export default async function handler(request) {
       return json({ error: "Your session is invalid or expired." }, 401);
     const identity = (await lookup.json()).users?.[0];
     if (!identity?.localId) return json({ error: "Invalid account." }, 401);
+    if (!identity.emailVerified) return json({ error: "Verify your email before uploading." }, 403);
     const uid = identity.localId;
+
+    // Check account disabled status
     const profile = await fetch(
       `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/(default)/documents/users/${encodeURIComponent(uid)}`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}) },
         signal: AbortSignal.timeout(10000),
       },
     );
-    if (!profile.ok)
-      return json({ error: "Owner verification required." }, 403);
+    if (!profile.ok) return json({ error: "Account profile could not be verified." }, 403);
     const fields = (await profile.json()).fields;
     const isDisabled = fields?.disabled?.booleanValue === true;
+    const isVerifiedLandlord = fields?.role?.stringValue === "landlord" && fields?.verified?.booleanValue === true;
     if (isDisabled)
       return json(
-        { error: "Suspended accounts cannot upload images." },
+        { error: "Suspended accounts cannot upload media." },
         403,
       );
+    if (!isVerifiedLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const public_id = `dormpath/${uid}/${randomUUID()}`;
+
+    // If client requested signature generation for direct progress upload:
+    if (isJson) {
+      const reqJson = await request.json().catch(() => ({}));
+      const resourceType = reqJson.resourceType === "video" ? "video" : "image";
+      const params = {
+        overwrite: "false",
+        public_id,
+        timestamp: String(timestamp),
+        upload_preset: preset,
+      };
+      const sign = Object.keys(params)
+        .sort()
+        .map((k) => `${k}=${params[k]}`)
+        .join("&");
+      const signature = createHash("sha256")
+        .update(sign + secret)
+        .digest("hex");
+      return json({
+        signature,
+        timestamp,
+        apiKey: key,
+        cloudName: cloud,
+        uploadPreset: preset,
+        publicId: public_id,
+        resourceType,
+      });
+    }
+
+    // Binary upload streaming
     const reader = request.body?.getReader();
-    if (!reader) return json({ error: "Photo is missing." }, 400);
+    if (!reader) return json({ error: "Media file is missing." }, 400);
     const chunks = [];
     let size = 0;
+    const maxBytes = isVideo ? 40 * 1024 * 1024 : 10 * 1024 * 1024;
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 3 * 1024 * 1024) {
+      if (size > maxBytes) {
         await reader.cancel();
-        return json({ error: "Photo exceeds the 3 MB compressed limit." }, 413);
+        return json({ error: `File exceeds the ${isVideo ? "40 MB" : "10 MB"} limit.` }, 413);
       }
       chunks.push(value);
     }
     const bytes = Buffer.concat(chunks);
-    if (
-      bytes.length < 12 ||
-      bytes.toString("ascii", 0, 4) !== "RIFF" ||
-      bytes.toString("ascii", 8, 12) !== "WEBP"
-    )
-      return json({ error: "Invalid WebP image." }, 415);
-    const timestamp = Math.floor(Date.now() / 1000),
-      public_id = `dormpath/${uid}/${randomUUID()}`;
+    if (bytes.length < 12) {
+      return json({ error: "Invalid media file content." }, 415);
+    }
+
+    const resourceType = isVideo ? "video" : "image";
     const params = {
       overwrite: "false",
       public_id,
@@ -106,28 +148,32 @@ export default async function handler(request) {
     for (const [k, v] of Object.entries(params)) body.set(k, v);
     body.set("signature", signature);
     body.set("api_key", key);
+    const mimeType = isVideo ? (rawContentType.startsWith("video/") ? rawContentType : "video/mp4") : (rawContentType.startsWith("image/") ? rawContentType : "image/webp");
+    const filename = isVideo ? "property_video.mp4" : "property_photo.webp";
     body.set(
       "file",
-      new Blob([bytes], { type: "image/webp" }),
-      "property.webp",
+      new Blob([bytes], { type: mimeType }),
+      filename,
     );
     const upload = await fetch(
-      `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/image/upload`,
-      { method: "POST", body, signal: AbortSignal.timeout(25000) },
+      `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloud)}/${resourceType}/upload`,
+      { method: "POST", body, signal: AbortSignal.timeout(45000) },
     );
-    if (!upload.ok)
+    if (!upload.ok) {
+      const errRes = await upload.json().catch(() => ({}));
       return json(
         {
           error:
-            "Image provider rejected the upload. Check the signed preset and account quota.",
+            errRes?.error?.message || "Media provider rejected upload. Check signed preset and account quota.",
         },
         502,
       );
+    }
     const result = await upload.json();
-    return json({ url: result.secure_url });
-  } catch {
+    return json({ url: result.secure_url || result.url });
+  } catch (err) {
     return json(
-      { error: "Upload could not complete. Please retry when connected." },
+      { error: err.message || "Upload could not complete. Please retry when connected." },
       502,
     );
   }

@@ -3,35 +3,54 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function me() { return request.auth.uid; }
-    function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(me())) && get(/databases/$(database)/documents/users/$(me())).data.disabled == false; }
+    function active() { return signedIn() && (request.auth.token.get('email_verified', false) == true || request.auth.token.get('admin', false) == true) && exists(/databases/$(database)/documents/users/$(me())) && get(/databases/$(database)/documents/users/$(me())).data.get('disabled', false) == false; }
     function admin() { return active() && request.auth.token.get('admin', false) == true; }
-    function owner() { return active() && get(/databases/$(database)/documents/users/$(me())).data.role == 'landlord'; }
+    function owner() { return active() && ((get(/databases/$(database)/documents/users/$(me())).data.role == 'landlord' && get(/databases/$(database)/documents/users/$(me())).data.get('verified', false) == true) || admin()); }
     function bounded() { return request.query.limit != null && request.query.limit <= 100; }
     function text(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
     function amount(v) { return v is number && v >= 0 && v <= 1000000; }
     function photo(p) { return p is string && p.size() < 1000 && p.matches('https://res[.]cloudinary[.]com/[^/]+/image/upload/.*'); }
+    function video(v) { return v is string && v.size() < 1000 && v.matches('https://res[.]cloudinary[.]com/[^/]+/video/upload/.*'); }
     function photos(p) { return p is list && p.size() <= 8 && (p.size()<1 || photo(p[0])) && (p.size()<2 || photo(p[1])) && (p.size()<3 || photo(p[2])) && (p.size()<4 || photo(p[3])) && (p.size()<5 || photo(p[4])) && (p.size()<6 || photo(p[5])) && (p.size()<7 || photo(p[6])) && (p.size()<8 || photo(p[7])); }
     function property(id) { return get(/databases/$(database)/documents/properties/$(id)).data; }
     function participant(c) { return active() && me() in c.participants; }
-    function unblocked(c) { return !exists(/databases/$(database)/documents/users/$(c.studentId)/blocks/$(c.ownerId)) && !exists(/databases/$(database)/documents/users/$(c.ownerId)/blocks/$(c.studentId)); }
+    function unblocked(c) { return !exists(/databases/$(database)/documents/users/$(c.tenantId)/blocks/$(c.ownerId)) && !exists(/databases/$(database)/documents/users/$(c.ownerId)/blocks/$(c.tenantId)); }
     match /users/{uid} {
       allow get: if signedIn() && (me() == uid || admin());
       allow list: if admin() && bounded();
-      allow create: if signedIn() && me() == uid && request.resource.data.keys().hasOnly(['name','role','verified','disabled','createdAt']) && text(request.resource.data.name,80) && request.resource.data.role in ['student','landlord'] && request.resource.data.verified is bool && request.resource.data.disabled == false && request.resource.data.createdAt == request.time;
-      allow update: if (active() && me() == uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','photoURL','school','phone','bio']) && text(request.resource.data.name,80) && (!('photoURL' in request.resource.data) || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 1000)) && (!('school' in request.resource.data) || (request.resource.data.school is string && request.resource.data.school.size() <= 120)) && (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 30)) && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 500))) || (admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified','disabled']) && request.resource.data.verified is bool && request.resource.data.disabled is bool && (!request.resource.data.verified || resource.data.role == 'landlord') && (uid != me() || !request.resource.data.disabled));
+      allow create: if signedIn() && me() == uid && request.resource.data.keys().hasOnly(['name','role','verified','disabled','createdAt','photoURL','school','phone','bio']) && text(request.resource.data.name,80) && request.resource.data.role in ['landlord','tenant'] && request.resource.data.verified == false && request.resource.data.disabled == false && request.resource.data.createdAt == request.time && (!('photoURL' in request.resource.data) || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 1000));
+      allow update: if (signedIn() && me() == uid && request.auth.token.get('email_verified', false) == true && resource.data.get('disabled', false) == false && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','photoURL','school','phone','bio','updatedAt']) && (!('name' in request.resource.data) || text(request.resource.data.name,80)) && (!('photoURL' in request.resource.data) || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 1000)) && (!('school' in request.resource.data) || (request.resource.data.school is string && request.resource.data.school.size() <= 120)) && (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 30)) && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 500))) || (admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','verified','disabled']) && request.resource.data.role in ['landlord','tenant'] && request.resource.data.verified is bool && request.resource.data.disabled is bool && (!request.resource.data.verified || (request.resource.data.role == 'landlord' && getAfter(/databases/$(database)/documents/landlordApplications/$(uid)).data.status == 'approved')) && (uid != me() || !request.resource.data.disabled));
       match /blocks/{blockedId} {
         allow read: if active() && me() == uid;
         allow create: if active() && me() == uid && blockedId != uid && request.resource.data.keys().hasOnly(['createdAt']) && request.resource.data.createdAt == request.time;
         allow delete: if active() && me() == uid;
       }
     }
+    function validLandlordApplication(a, uid) {
+      return a.keys().hasOnly(['userId','legalName','propertyAddress','proofOfOwnershipRef','businessPermitNumber','businessPermitExpires','barangayClearanceNumber','barangayClearanceExpires','fireSafetyNumber','fireSafetyExpires','consent','status','missingItems','reviewNotes','createdAt','submittedAt','updatedAt','reviewedAt'])
+        && a.userId == uid && text(a.legalName,120) && text(a.propertyAddress,250) && text(a.proofOfOwnershipRef,120)
+        && text(a.businessPermitNumber,100) && a.businessPermitExpires is string && a.businessPermitExpires.size() == 10
+        && text(a.barangayClearanceNumber,100) && a.barangayClearanceExpires is string && a.barangayClearanceExpires.size() == 10
+        && text(a.fireSafetyNumber,100) && a.fireSafetyExpires is string && a.fireSafetyExpires.size() == 10
+        && a.consent == true && a.status in ['submitted','changes_requested','approved','rejected']
+        && a.missingItems is list && a.missingItems.size() <= 9 && a.reviewNotes is string && a.reviewNotes.size() <= 1000
+        && a.createdAt is timestamp && a.submittedAt is timestamp && a.updatedAt is timestamp;
+    }
+    match /landlordApplications/{uid} {
+      allow get: if active() && (me() == uid || admin());
+      allow list: if admin() && bounded();
+      allow create: if active() && me() == uid && validLandlordApplication(request.resource.data, uid) && request.resource.data.status == 'submitted' && request.resource.data.missingItems == [] && request.resource.data.reviewNotes == '' && request.resource.data.createdAt == request.time && request.resource.data.submittedAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if active() && me() == uid && resource.data.status in ['submitted','changes_requested','rejected'] && validLandlordApplication(request.resource.data, uid) && request.resource.data.status == 'submitted' && request.resource.data.missingItems == [] && request.resource.data.reviewNotes == '' && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.submittedAt == request.time && request.resource.data.updatedAt == request.time
+        || (admin() && validLandlordApplication(request.resource.data, uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','missingItems','reviewNotes','reviewedAt','updatedAt']) && request.resource.data.status in ['approved','changes_requested','rejected'] && request.resource.data.reviewedAt == request.time && request.resource.data.updatedAt == request.time && (request.resource.data.status != 'approved' || (getAfter(/databases/$(database)/documents/users/$(uid)).data.role == 'landlord' && getAfter(/databases/$(database)/documents/users/$(uid)).data.verified == true)));
+    }
     function validProperty(p) {
-      return p.keys().hasOnly(['ownerId','ownerName','title','barangay','address','school','description','utilities','rules','minPrice','deposit','advance','lat','lng','roomTypes','amenities','photos','available','capacity','status','createdAt','updatedAt','vacancyConfirmedAt','lastRoomId'])
-        && text(p.title,120) && text(p.ownerName,80) && text(p.barangay,100) && text(p.address,250) && p.school is string && p.school.size() <= 120 && text(p.description,4000) && text(p.utilities,1000) && text(p.rules,2000)
+      return p.keys().hasOnly(['ownerId','ownerName','title','barangay','address','school','description','utilities','rules','minPrice','deposit','advance','lat','lng','roomTypes','amenities','photos','available','capacity','status','createdAt','updatedAt','vacancyConfirmedAt','lastRoomId','video'])
+        && text(p.title,120) && text(p.ownerName,80) && text(p.barangay,100) && text(p.address,250) && p.school is string && p.school.size() <= 120 && text(p.description,4000) && p.utilities is string && p.utilities.size() <= 1000 && p.rules is string && p.rules.size() <= 2000
         && amount(p.minPrice) && amount(p.deposit) && amount(p.advance) && p.lat is number && p.lat >= -90 && p.lat <= 90 && p.lng is number && p.lng >= -180 && p.lng <= 180
         && p.roomTypes is list && p.roomTypes.size() > 0 && p.roomTypes.size() <= 7 && p.roomTypes.hasOnly(['Boarding house','Dormitory','Apartment','Studio','Solo room','Sharing room','Bedspace'])
         && p.amenities is list && p.amenities.size() <= 8 && p.amenities.hasOnly(['Wi-Fi','Air conditioning','Kitchen','Laundry','Parking','Private bathroom','Study area','CCTV'])
-        && photos(p.photos) && p.available is int && p.capacity is int && p.available >= 0 && p.capacity >= p.available
+        && photos(p.photos) && (!('video' in p) || p.video == '' || video(p.video))
+        && p.available is int && p.capacity is int && p.available >= 0 && p.capacity >= p.available
         && p.createdAt is timestamp && p.updatedAt is timestamp && p.vacancyConfirmedAt is timestamp && p.lastRoomId is string;
     }
     match /properties/{id} {
@@ -41,21 +60,22 @@ service cloud.firestore {
         let before = exists(/databases/$(database)/documents/rooms/$(rid)) ? get(/databases/$(database)/documents/rooms/$(rid)).data : {'available':0,'capacity':0};
         return after.propertyId == id && after.ownerId == me() && after.updatedAt == request.time && request.resource.data.available == resource.data.available - before.available + after.available && request.resource.data.capacity == resource.data.capacity - before.capacity + after.capacity;
       }
-      allow delete: if owner() && resource.data.ownerId == me() && resource.data.status == 'archived';
+      allow delete: if (owner() || admin()) && (resource.data.ownerId == me() || admin()) && resource.data.status == 'archived';
       allow get: if resource.data.status == 'published' || (active() && resource.data.ownerId == me()) || admin();
       allow list: if bounded() && (resource.data.status == 'published' || (active() && resource.data.ownerId == me()) || admin());
-      allow create: if owner() && request.resource.data.ownerId == me() && validProperty(request.resource.data) && request.resource.data.status in ['pending','published'] && request.resource.data.available == 0 && request.resource.data.capacity == 0 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time && request.resource.data.vacancyConfirmedAt == request.time;
+      allow create: if (owner() || admin()) && request.resource.data.ownerId == me() && validProperty(request.resource.data) && request.resource.data.status == 'pending' && request.resource.data.available == 0 && request.resource.data.capacity == 0 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time && request.resource.data.vacancyConfirmedAt == request.time;
       allow update: if (admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status in ['published','rejected','paused','archived'])
-        || (owner() && resource.data.ownerId == me() && request.resource.data.ownerId == resource.data.ownerId && request.resource.data.createdAt == resource.data.createdAt && validProperty(request.resource.data) && request.resource.data.updatedAt == request.time && (
-          (request.resource.data.status in ['pending','published','paused','archived'] && request.resource.data.available == resource.data.available && request.resource.data.capacity == resource.data.capacity && request.resource.data.vacancyConfirmedAt == resource.data.vacancyConfirmedAt && request.resource.data.lastRoomId == resource.data.lastRoomId)
+        || ((owner() || admin()) && (resource.data.ownerId == me() || admin()) && request.resource.data.ownerId == resource.data.ownerId && request.resource.data.createdAt == resource.data.createdAt && validProperty(request.resource.data) && request.resource.data.updatedAt == request.time && (
+          (request.resource.data.status == 'pending' && request.resource.data.available == resource.data.available && request.resource.data.capacity == resource.data.capacity && request.resource.data.vacancyConfirmedAt == resource.data.vacancyConfirmedAt && request.resource.data.lastRoomId == resource.data.lastRoomId)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']) && request.resource.data.status in ['paused','archived'])
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['available','capacity','vacancyConfirmedAt','updatedAt','lastRoomId']) && request.resource.data.vacancyConfirmedAt == request.time && inventoryConsistent())
         ));
     }
     match /rooms/{id} {
-      allow delete: if owner() && resource.data.ownerId == me() && property(resource.data.propertyId).status == 'archived';
+      allow delete: if admin() || (owner() && resource.data.ownerId == me() && property(resource.data.propertyId).status == 'archived');
       allow get: if property(resource.data.propertyId).status == 'published' || (active() && resource.data.ownerId == me()) || admin();
       allow list: if bounded() && (property(resource.data.propertyId).status == 'published' || (active() && resource.data.ownerId == me()) || admin());
-      allow create, update: if owner() && request.resource.data.ownerId == me() && property(request.resource.data.propertyId).ownerId == me()
+      allow create, update: if (owner() || admin()) && request.resource.data.ownerId == me() && property(request.resource.data.propertyId).ownerId == me()
         && request.resource.data.keys().hasOnly(['name','type','price','capacity','available','propertyId','ownerId','updatedAt']) && text(request.resource.data.name,100)
         && request.resource.data.type in ['Boarding house','Dormitory','Apartment','Studio','Solo room','Sharing room','Bedspace'] && amount(request.resource.data.price)
         && request.resource.data.capacity is int && request.resource.data.capacity >= 1 && request.resource.data.capacity <= 100 && request.resource.data.available is int && request.resource.data.available >= 0 && request.resource.data.available <= request.resource.data.capacity && request.resource.data.updatedAt == request.time
@@ -68,7 +88,7 @@ service cloud.firestore {
       allow create: if active() && request.resource.data.keys().hasOnly(['userId','propertyId','createdAt']) && request.resource.data.userId == me() && id == me() + '_' + request.resource.data.propertyId && property(request.resource.data.propertyId).status == 'published' && request.resource.data.createdAt == request.time;
       allow delete: if active() && resource.data.userId == me();
     }
-    match /studentRequests/{id} {
+    match /tenantRequests/{id} {
       allow get: if resource.data.status == 'open' || (active() && resource.data.userId == me()) || admin();
       allow list: if bounded() && (resource.data.status == 'open' || (active() && resource.data.userId == me()) || admin());
       allow create: if active() && request.resource.data.keys().hasOnly(['userId','name','location','type','budget','occupants','moveIn','notes','status','createdAt']) && request.resource.data.userId == me() && text(request.resource.data.name,80) && text(request.resource.data.location,120) && request.resource.data.type in ['Boarding house','Dormitory','Apartment','Studio','Solo room','Sharing room','Bedspace'] && amount(request.resource.data.budget) && request.resource.data.budget > 0 && request.resource.data.occupants is int && request.resource.data.occupants >= 1 && request.resource.data.occupants <= 20 && request.resource.data.moveIn is string && request.resource.data.moveIn.size() == 10 && request.resource.data.notes is string && request.resource.data.notes.size() <= 1000 && request.resource.data.status == 'open' && request.resource.data.createdAt == request.time;
@@ -77,10 +97,10 @@ service cloud.firestore {
     match /conversations/{id} {
       allow get: if active() && (!exists(/databases/$(database)/documents/conversations/$(id)) || participant(resource.data));
       allow list: if bounded() && participant(resource.data);
-      allow create: if active() && request.resource.data.keys().hasOnly(['propertyId','studentId','ownerId','participants','title','createdAt','updatedAt','lastMessage','lastSender','readAt'])
-        && request.resource.data.participants == [request.resource.data.studentId,request.resource.data.ownerId] && me() in request.resource.data.participants && request.resource.data.studentId != request.resource.data.ownerId
-        && id == request.resource.data.propertyId + '_' + request.resource.data.studentId && property(request.resource.data.propertyId).ownerId == request.resource.data.ownerId && property(request.resource.data.propertyId).status == 'published'
-        && get(/databases/$(database)/documents/users/$(request.resource.data.studentId)).data.disabled == false && get(/databases/$(database)/documents/users/$(request.resource.data.ownerId)).data.disabled == false
+      allow create: if active() && request.resource.data.keys().hasOnly(['propertyId','tenantId','ownerId','participants','title','createdAt','updatedAt','lastMessage','lastSender','readAt'])
+        && request.resource.data.participants == [request.resource.data.tenantId,request.resource.data.ownerId] && me() in request.resource.data.participants && request.resource.data.tenantId != request.resource.data.ownerId
+        && id == request.resource.data.propertyId + '_' + request.resource.data.tenantId && property(request.resource.data.propertyId).ownerId == request.resource.data.ownerId && property(request.resource.data.propertyId).status == 'published'
+        && get(/databases/$(database)/documents/users/$(request.resource.data.tenantId)).data.disabled == false && get(/databases/$(database)/documents/users/$(request.resource.data.ownerId)).data.disabled == false
         && request.resource.data.title == property(request.resource.data.propertyId).title && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time && request.resource.data.lastMessage == '' && request.resource.data.lastSender == '' && request.resource.data.readAt == {} && unblocked(request.resource.data);
       allow update: if participant(resource.data) && (
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']) && request.resource.data.readAt.diff(resource.data.readAt).affectedKeys().hasOnly([me()]) && request.resource.data.readAt[me()] == request.time)
@@ -97,7 +117,7 @@ service cloud.firestore {
       function conv() { return get(/databases/$(database)/documents/conversations/$(request.resource.data.conversationId)).data; }
       allow get: if participant(resource.data);
       allow list: if bounded() && participant(resource.data);
-      allow create: if active() && request.resource.data.keys().hasOnly(['conversationId','studentId','ownerId','participants','date','status','createdAt']) && request.resource.data.studentId == me() && conv().studentId == me() && request.resource.data.ownerId == conv().ownerId && request.resource.data.participants == conv().participants && unblocked(conv()) && text(request.resource.data.date,40) && request.resource.data.status == 'requested' && request.resource.data.createdAt == request.time;
+      allow create: if active() && request.resource.data.keys().hasOnly(['conversationId','tenantId','ownerId','participants','date','status','createdAt']) && request.resource.data.tenantId == me() && conv().tenantId == me() && request.resource.data.ownerId == conv().ownerId && request.resource.data.participants == conv().participants && unblocked(conv()) && text(request.resource.data.date,40) && request.resource.data.status == 'requested' && request.resource.data.createdAt == request.time;
       allow update: if active() && resource.data.ownerId == me() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'confirmed';
     }
     match /notifications/{id} {

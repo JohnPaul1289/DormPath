@@ -17,7 +17,7 @@
       ]
     },
     {
-      "collectionGroup": "studentRequests",
+      "collectionGroup": "tenantRequests",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
@@ -42,7 +42,7 @@
     },
     { "collectionGroup": "properties", "fieldPath": "photos", "indexes": [] },
     {
-      "collectionGroup": "studentRequests",
+      "collectionGroup": "tenantRequests",
       "fieldPath": "notes",
       "indexes": []
     }

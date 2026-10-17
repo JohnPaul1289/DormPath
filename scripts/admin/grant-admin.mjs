@@ -163,16 +163,15 @@ async function main() {
       console.log("Creating user profile document in Firestore...");
       await userRef.set({
         name: user.displayName || user.email?.split("@")[0] || "Administrator",
-        role: "landlord",
-        verified: true,
+        role: "tenant",
+        verified: false,
         disabled: false,
         createdAt: new Date(),
       });
     } else {
-      console.log("Updating user profile verification and active status in Firestore...");
+      console.log("Keeping the existing platform role and restoring active status...");
       await userRef.update({
         disabled: false,
-        verified: true,
       });
     }
 

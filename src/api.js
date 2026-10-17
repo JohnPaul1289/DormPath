@@ -11,6 +11,9 @@ import {
   sendEmailVerification,
   updateProfile,
   updatePassword,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -35,7 +38,6 @@ import {
 import {
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
-  ReCaptchaV3Provider,
   getToken,
 } from "firebase/app-check";
 import { validateRoom } from "./domain";
@@ -56,13 +58,6 @@ if (configured) {
     appId: env.VITE_FIREBASE_APP_ID,
   });
   if (env.VITE_APPCHECK_SITE_KEY) {
-    if (
-      typeof self !== "undefined" &&
-      (import.meta.env.DEV || env.VITE_APPCHECK_DEBUG_TOKEN)
-    ) {
-      self.FIREBASE_APPCHECK_DEBUG_TOKEN =
-        env.VITE_APPCHECK_DEBUG_TOKEN || true;
-    }
     try {
       appCheck = initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(env.VITE_APPCHECK_SITE_KEY),
@@ -70,15 +65,7 @@ if (configured) {
       });
       console.log("[DormPath] Firebase App Check connected via reCAPTCHA Enterprise.");
     } catch {
-      try {
-        appCheck = initializeAppCheck(app, {
-          provider: new ReCaptchaV3Provider(env.VITE_APPCHECK_SITE_KEY),
-          isTokenAutoRefreshEnabled: true,
-        });
-        console.log("[DormPath] Firebase App Check connected via reCAPTCHA v3.");
-      } catch (err) {
-        console.warn("[DormPath] App Check setup notice:", err.message);
-      }
+      console.warn("DormPath bot protection could not initialize.");
     }
   }
   db = getFirestore(app);
@@ -95,7 +82,7 @@ const requireDB = () => {
 };
 const requireUser = () => {
   requireDB();
-  if (!currentUser) throw Error("Please sign in to continue.");
+  if (!currentUser?.emailVerified) throw Error("Please sign in with a verified email to continue.");
 };
 const rows = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 async function pagedRows(name, constraints = []) {
@@ -116,28 +103,39 @@ async function pagedRows(name, constraints = []) {
   }
   return items;
 }
+let preferredSignupRole = "tenant";
+async function ensureProfile(user) {
+  const ref = doc(db, "users", user.uid);
+  await runTransaction(db, async (tx) => {
+    if (!(await tx.get(ref)).exists()) tx.set(ref, {
+      name: (user.displayName || user.email?.split("@")[0] || "Tenant").slice(0, 80),
+      role: preferredSignupRole,
+      verified: false,
+      disabled: false,
+      createdAt: serverTimestamp(),
+    });
+  });
+  return (await getDoc(ref)).data();
+}
 export function watchAuth(fn) {
   if (!configured) {
     fn(null);
     return () => {};
   }
   return onAuthStateChanged(auth, async (user) => {
+    if (user && !user.emailVerified) {
+      currentUser = null;
+      profile = null;
+      isAdmin = false;
+      fn(null);
+      return;
+    }
     currentUser = user;
     try {
       if (user) {
-        const userRef = doc(db, "users", user.uid);
-        let userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            name: user.displayName || user.email?.split("@")[0] || "Neighbor",
-            role: "student",
-            verified: false,
-            disabled: false,
-            createdAt: serverTimestamp(),
-          });
-          userSnap = await getDoc(userRef);
-        }
-        profile = userSnap.data();
+        profile = await ensureProfile(user);
+        if (auth.currentUser?.uid !== user.uid) return;
+        if (profile.disabled) { await signOut(auth); throw Error("This account is suspended."); }
         isAdmin = Boolean((await user.getIdTokenResult()).claims.admin);
       } else {
         profile = null;
@@ -147,48 +145,86 @@ export function watchAuth(fn) {
     } catch (e) {
       profile = null;
       isAdmin = false;
-      fn(user, e);
+      currentUser = null;
+      fn(null, e);
     }
   });
 }
-export async function login(email, password) {
+export async function login(email, password, remember = false) {
   requireDB();
-  return signInWithEmailAndPassword(auth, email, password);
+  if (env.VITE_APPCHECK_SITE_KEY && appCheck) {
+    try {
+      await getToken(appCheck);
+    } catch (err) {
+      console.warn("[DormPath] App Check verification skipped on this domain or browser:", err);
+    }
+  }
+  await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  if (!cred.user.emailVerified) {
+    const unverifiedEmail = cred.user.email;
+    await signOut(auth);
+    currentUser = null;
+    profile = null;
+    const err = new Error(
+      "Your email address is not verified yet. Please check your inbox (and spam folder) for the verification link before logging in.",
+    );
+    err.code = "auth/unverified-email";
+    err.email = unverifiedEmail;
+    throw err;
+  }
+  profile = await ensureProfile(cred.user);
+  if (profile.disabled) { await signOut(auth); throw Error("This account is suspended."); }
+  currentUser = cred.user;
+  isAdmin = Boolean((await cred.user.getIdTokenResult()).claims.admin);
+  return cred;
 }
-export async function loginWithGoogle(preferredRole = "student") {
+export async function loginWithGoogle(preferredRole = "tenant", remember = false) {
   requireDB();
+  preferredSignupRole = preferredRole === "landlord" ? "landlord" : "tenant";
+  await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   const result = await signInWithPopup(auth, provider);
   const user = result.user;
-  const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
-  if (!userSnap.exists()) {
-    await setDoc(userRef, {
-      name: user.displayName || "Neighbor",
-      role: preferredRole === "landlord" ? "landlord" : "student",
-      verified: false,
-      disabled: false,
-      createdAt: serverTimestamp(),
-    });
-  }
-  profile = (await getDoc(userRef)).data();
+  profile = await ensureProfile(user);
+  if (profile.disabled) { await signOut(auth); throw Error("This account is suspended."); }
+  currentUser = user;
+  isAdmin = Boolean((await user.getIdTokenResult()).claims.admin);
   return user;
 }
 export async function register({ email, password, name, role }) {
   requireDB();
   const { user } = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(user, { displayName: name });
+  const sanitizedRole = role === "landlord" ? "landlord" : "tenant";
   await setDoc(doc(db, "users", user.uid), {
     name,
-    role,
+    role: sanitizedRole,
     verified: false,
     disabled: false,
     createdAt: serverTimestamp(),
   });
-  await sendEmailVerification(user);
-  profile = (await getDoc(doc(db, "users", user.uid))).data();
+  try {
+    await sendEmailVerification(user);
+  } finally {
+    await signOut(auth);
+  }
+  currentUser = null;
+  profile = null;
   return user;
+}
+export async function resendVerificationEmail(email, password) {
+  requireDB();
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  try {
+    await sendEmailVerification(cred.user);
+  } finally {
+    await signOut(auth);
+  }
+  currentUser = null;
+  profile = null;
+  return true;
 }
 export async function logout() {
   await clearPrivate();
@@ -209,14 +245,40 @@ export async function saveProfile(data) {
   if (payload.phone !== undefined) updates.phone = payload.phone;
   if (payload.bio !== undefined) updates.bio = payload.bio;
 
-  if (Object.keys(updates).length > 0) {
-    await updateDoc(doc(db, "users", currentUser.uid), updates);
-  }
+  // 1. Always update Firebase Auth profile first
   const authUpdates = {};
   if (payload.name !== undefined) authUpdates.displayName = payload.name;
   if (payload.photoURL !== undefined) authUpdates.photoURL = payload.photoURL;
   if (Object.keys(authUpdates).length > 0) {
-    await updateProfile(currentUser, authUpdates);
+    try {
+      await updateProfile(currentUser, authUpdates);
+    } catch (e) {
+      console.warn("Auth update warning:", e);
+    }
+  }
+
+  // 2. Sync with Firestore users collection
+  if (Object.keys(updates).length > 0) {
+    const userRef = doc(db, "users", currentUser.uid);
+    try {
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) {
+        await setDoc(userRef, {
+          name: currentUser.displayName || updates.name || "User",
+          role: profile?.role === "landlord" ? "landlord" : "tenant",
+          verified: false,
+          disabled: false,
+          createdAt: serverTimestamp(),
+          ...updates,
+        });
+      } else {
+        await updateDoc(userRef, updates);
+      }
+    } catch (e) {
+      console.warn("Firestore profile sync warning:", e);
+      // If photoURL was updated in auth, we don't throw an unhandled error to the user
+      if (!authUpdates.photoURL) throw e;
+    }
   }
   profile = { ...profile, ...updates };
 }
@@ -274,11 +336,17 @@ export async function ownProperties() {
 }
 export async function saveProperty(data, id) {
   requireUser();
+  if (!profile) {
+    try {
+      const snap = await getDoc(doc(db, "users", currentUser.uid));
+      if (snap.exists()) profile = snap.data();
+    } catch {}
+  }
   const value = {
     ...data,
     ownerId: currentUser.uid,
-    ownerName: profile.name,
-    status: data.status || "published",
+    ownerName: (profile?.name || currentUser.displayName || "Property Owner").slice(0, 80),
+    status: "pending",
     updatedAt: serverTimestamp(),
   };
   if (id) await updateDoc(doc(db, "properties", id), value);
@@ -294,6 +362,76 @@ export async function saveProperty(data, id) {
     id = ref.id;
   }
   return id;
+}
+export async function getLandlordApplication(uid = currentUser?.uid) {
+  requireUser();
+  const snap = await getDoc(doc(db, "landlordApplications", uid));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+export async function submitLandlordApplication(data) {
+  requireUser();
+  const clean = {
+    userId: currentUser.uid,
+    legalName: String(data.legalName || "").trim(),
+    propertyAddress: String(data.propertyAddress || "").trim(),
+    proofOfOwnershipRef: String(data.proofOfOwnershipRef || "").trim(),
+    businessPermitNumber: String(data.businessPermitNumber || "").trim(),
+    businessPermitExpires: String(data.businessPermitExpires || "").trim(),
+    barangayClearanceNumber: String(data.barangayClearanceNumber || "").trim(),
+    barangayClearanceExpires: String(data.barangayClearanceExpires || "").trim(),
+    fireSafetyNumber: String(data.fireSafetyNumber || "").trim(),
+    fireSafetyExpires: String(data.fireSafetyExpires || "").trim(),
+    consent: data.consent === true || data.consent === "on",
+  };
+  const missing = Object.entries(clean)
+    .filter(([key, value]) => key !== "userId" && (value === "" || value === false))
+    .map(([key]) => key);
+  if (missing.length) throw Error(`Complete all permit fields: ${missing.join(", ")}.`);
+  for (const [label, value] of [
+    ["business permit", clean.businessPermitExpires],
+    ["barangay clearance", clean.barangayClearanceExpires],
+    ["fire safety certificate", clean.fireSafetyExpires],
+  ]) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || new Date(`${value}T23:59:59`).getTime() < Date.now()) {
+      throw Error(`The ${label} must have a valid, unexpired date.`);
+    }
+  }
+  const ref = doc(db, "landlordApplications", currentUser.uid);
+  const existing = await getDoc(ref);
+  const base = {
+    ...clean,
+    status: "submitted",
+    missingItems: [],
+    reviewNotes: "",
+    submittedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  if (existing.exists()) await updateDoc(ref, base);
+  else await setDoc(ref, { ...base, createdAt: serverTimestamp() });
+}
+export async function reviewLandlordApplication(uid, status, missingItems = [], reviewNotes = "") {
+  requireUser();
+  if (!isAdmin) throw Error("Administrator access required.");
+  if (!["approved", "changes_requested", "rejected"].includes(status)) throw Error("Invalid review status.");
+  const applicationRef = doc(db, "landlordApplications", uid);
+  const userRef = doc(db, "users", uid);
+  const batch = writeBatch(db);
+  batch.update(applicationRef, {
+    status,
+    missingItems: status === "changes_requested" ? missingItems.slice(0, 9) : [],
+    reviewNotes: String(reviewNotes || "").trim().slice(0, 1000),
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.update(userRef, { role: status === "approved" ? "landlord" : "tenant", verified: status === "approved" });
+  batch.set(doc(collection(db, "auditLogs")), {
+    actorId: currentUser.uid,
+    collection: "landlordApplications",
+    targetId: uid,
+    changes: { status, missingItems: status === "changes_requested" ? missingItems.slice(0, 9) : [] },
+    createdAt: serverTimestamp(),
+  });
+  await batch.commit();
 }
 export async function propertyStatus(id, status) {
   requireUser();
@@ -394,7 +532,7 @@ export async function requests() {
   return rows(
     await getDocs(
       query(
-        collection(db, "studentRequests"),
+        collection(db, "tenantRequests"),
         where("status", "==", "open"),
         orderBy("createdAt", "desc"),
         limit(30),
@@ -404,7 +542,7 @@ export async function requests() {
 }
 export async function createRequest(data) {
   requireUser();
-  await addDoc(collection(db, "studentRequests"), {
+  await addDoc(collection(db, "tenantRequests"), {
     ...data,
     userId: currentUser.uid,
     name: profile.name,
@@ -414,21 +552,21 @@ export async function createRequest(data) {
 }
 export async function closeRequest(id) {
   requireUser();
-  await updateDoc(doc(db, "studentRequests", id), { status: "closed" });
+  await updateDoc(doc(db, "tenantRequests", id), { status: "closed" });
 }
-export async function startConversation(property, studentId = currentUser.uid) {
+export async function startConversation(property, tenantId = currentUser.uid) {
   requireUser();
-  if (property.ownerId === studentId)
-    throw Error("Choose a student to start a conversation.");
-  const id = `${property.id}_${studentId}`;
+  if (property.ownerId === tenantId)
+    throw Error("Choose a tenant to start a conversation.");
+  const id = `${property.id}_${tenantId}`;
   const ref = doc(db, "conversations", id);
   await runTransaction(db, async (tx) => {
     if (!(await tx.get(ref)).exists())
       tx.set(ref, {
         propertyId: property.id,
-        studentId,
+        tenantId,
         ownerId: property.ownerId,
-        participants: [studentId, property.ownerId],
+        participants: [tenantId, property.ownerId],
         title: property.title,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -608,11 +746,11 @@ export async function blockUser(blockedId) {
 export async function viewing(conversationId, date) {
   requireUser();
   const c = (await getDoc(doc(db, "conversations", conversationId))).data();
-  if (currentUser.uid !== c.studentId)
-    throw Error("Only the student can request a viewing.");
+  if (currentUser.uid !== c.tenantId)
+    throw Error("Only the tenant can request a viewing.");
   await addDoc(collection(db, "viewingRequests"), {
     conversationId,
-    studentId: c.studentId,
+    tenantId: c.tenantId,
     ownerId: c.ownerId,
     participants: c.participants,
     date,
@@ -661,45 +799,155 @@ export async function moderate(name, id, changes) {
   });
   await batch.commit();
 }
-export async function uploadPhoto(file) {
+export async function uploadMedia(file, onProgress) {
   requireUser();
-  if (
-    !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-    file.size > 10 * 1024 * 1024
-  )
-    throw Error("Choose a JPEG, PNG or WebP photo under 10 MB.");
-  const bitmap = await createImageBitmap(file);
-  const ratio = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width * ratio;
-  canvas.height = bitmap.height * ratio;
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, "image/webp", 0.82),
-  );
-  if (!blob || blob.size > 3 * 1024 * 1024)
-    throw Error("Image is too large after compression.");
-  const headers = {
-    Authorization: `Bearer ${await currentUser.getIdToken()}`,
-    "Content-Type": "image/webp",
-  };
-  if (appCheck) {
+  if (!file) throw Error("No file selected.");
+  const isVideo = file.type.startsWith("video/");
+  const isImage = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+  if (!isImage && !isVideo) {
+    throw Error("Please choose an image (JPEG, PNG, WebP) or video (MP4, WebM, MOV).");
+  }
+  if (isImage && file.size > 10 * 1024 * 1024) {
+    throw Error("Image photo must be under 10 MB.");
+  }
+  if (isVideo && file.size > 40 * 1024 * 1024) {
+    throw Error("Video walkthrough must be under 40 MB.");
+  }
+
+  let uploadBlob = file;
+  let contentType = file.type;
+
+  if (isImage) {
     try {
-      const appCheckToken = await getToken(appCheck, false);
-      if (appCheckToken?.token) {
-        headers["X-Firebase-AppCheck"] = appCheckToken.token;
+      const bitmap = await createImageBitmap(file);
+      const ratio = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width * ratio;
+      canvas.height = bitmap.height * ratio;
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const compressed = await new Promise((resolve) =>
+        canvas.toBlob(resolve, "image/webp", 0.85)
+      );
+      if (compressed && compressed.size > 0 && compressed.size <= 5 * 1024 * 1024) {
+        uploadBlob = compressed;
+        contentType = "image/webp";
       }
     } catch {
-      // Graceful fallback during setup or before App Check enforcement
+      uploadBlob = file;
+      contentType = file.type;
     }
   }
-  const res = await fetch("/.netlify/functions/upload", {
-    method: "POST",
-    headers,
-    body: blob,
+
+  const idToken = await currentUser.getIdToken();
+  let appCheckToken = null;
+  if (appCheck) {
+    try {
+      const t = await getToken(appCheck, false);
+      if (t?.token) appCheckToken = t.token;
+    } catch {}
+  }
+
+  // 1. Attempt signed direct Cloudinary upload (enables real progress & up to 50MB)
+  try {
+    const signRes = await fetch("/.netlify/functions/upload", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+        ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
+      },
+      body: JSON.stringify({ resourceType: isVideo ? "video" : "image" }),
+    });
+
+    if (signRes.ok) {
+      const signData = await signRes.json();
+      if (signData.signature && signData.apiKey && signData.cloudName) {
+        return await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          const targetUrl = `https://api.cloudinary.com/v1_1/${encodeURIComponent(signData.cloudName)}/${signData.resourceType || (isVideo ? "video" : "image")}/upload`;
+          xhr.open("POST", targetUrl);
+
+          if (xhr.upload && onProgress) {
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                onProgress(pct);
+              }
+            };
+          }
+
+          xhr.onload = () => {
+            try {
+              const res = JSON.parse(xhr.responseText);
+              if (xhr.status >= 200 && xhr.status < 300 && (res.secure_url || res.url)) {
+                if (onProgress) onProgress(100);
+                resolve(res.secure_url || res.url);
+              } else {
+                reject(new Error(res.error?.message || "Cloud upload rejected."));
+              }
+            } catch {
+              reject(new Error("Invalid response from media server."));
+            }
+          };
+
+          xhr.onerror = () => reject(new Error("Network connection error during upload."));
+          xhr.ontimeout = () => reject(new Error("Upload timed out. Please retry."));
+          xhr.timeout = 120000;
+
+          const formData = new FormData();
+          formData.append("file", uploadBlob);
+          formData.append("api_key", signData.apiKey);
+          formData.append("timestamp", String(signData.timestamp));
+          formData.append("signature", signData.signature);
+          formData.append("public_id", signData.publicId);
+          formData.append("upload_preset", signData.uploadPreset);
+          formData.append("overwrite", "false");
+          xhr.send(formData);
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Direct upload fallback to proxy:", err);
+  }
+
+  // 2. Fallback to Netlify function proxy streaming
+  return await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/.netlify/functions/upload");
+    xhr.setRequestHeader("Authorization", `Bearer ${idToken}`);
+    xhr.setRequestHeader("Content-Type", contentType);
+    if (isVideo) xhr.setRequestHeader("X-Resource-Type", "video");
+    if (appCheckToken) xhr.setRequestHeader("X-Firebase-AppCheck", appCheckToken);
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300 && (res.url || res.secure_url)) {
+          if (onProgress) onProgress(100);
+          resolve(res.url || res.secure_url);
+        } else {
+          reject(new Error(res.error || "Upload failed."));
+        }
+      } catch {
+        reject(new Error("Invalid upload response."));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Network connection error during upload."));
+    xhr.send(uploadBlob);
   });
-  const data = await res.json();
-  if (!res.ok) throw Error(data.error || "Upload failed.");
-  return data.url;
+}
+
+export async function uploadPhoto(file, onProgress) {
+  return uploadMedia(file, onProgress);
 }

@@ -23,7 +23,7 @@ import {
 let env;
 const db = (uid) =>
   env
-    .authenticatedContext(uid, uid === "admin" ? { admin: true } : {})
+    .authenticatedContext(uid, uid === "admin" ? { admin: true, email_verified: true } : { email_verified: true })
     .firestore();
 const profile = (role, verified = false) => ({
   name: role,
@@ -58,6 +58,25 @@ const listing = () => ({
   updatedAt: Timestamp.now(),
   vacancyConfirmedAt: Timestamp.now(),
 });
+const landlordApplication = (uid, status = "submitted") => ({
+  userId: uid,
+  legalName: "Permit Applicant",
+  propertyAddress: "Centro, Tuguegarao City",
+  proofOfOwnershipRef: "TCT-12345",
+  businessPermitNumber: "BP-12345",
+  businessPermitExpires: "2027-12-31",
+  barangayClearanceNumber: "BC-12345",
+  barangayClearanceExpires: "2027-12-31",
+  fireSafetyNumber: "FS-12345",
+  fireSafetyExpires: "2027-12-31",
+  consent: true,
+  status,
+  missingItems: [],
+  reviewNotes: "",
+  createdAt: Timestamp.now(),
+  submittedAt: Timestamp.now(),
+  updatedAt: Timestamp.now(),
+});
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-dormpath",
@@ -74,16 +93,17 @@ beforeEach(async () => {
     const d = c.firestore();
     await Promise.all([
       setDoc(doc(d, "users", "owner"), profile("landlord", true)),
-      setDoc(doc(d, "users", "student"), profile("student")),
-      setDoc(doc(d, "users", "stranger"), profile("student")),
+      setDoc(doc(d, "users", "tenant"), profile("tenant")),
+      setDoc(doc(d, "users", "stranger"), profile("tenant")),
       setDoc(doc(d, "users", "unverified"), profile("landlord")),
-      setDoc(doc(d, "users", "admin"), profile("student")),
+      setDoc(doc(d, "landlordApplications", "unverified"), landlordApplication("unverified")),
+      setDoc(doc(d, "users", "admin"), profile("tenant")),
       setDoc(doc(d, "properties", "p1"), listing()),
-      setDoc(doc(d, "conversations", "p1_student"), {
+      setDoc(doc(d, "conversations", "p1_tenant"), {
         propertyId: "p1",
-        studentId: "student",
+        tenantId: "tenant",
         ownerId: "owner",
-        participants: ["student", "owner"],
+        participants: ["tenant", "owner"],
         title: "Rules test property",
         lastMessage: "",
         lastSender: "",
@@ -116,10 +136,10 @@ test("users cannot self-verify, escalate role, or forge admin fields", async () 
     updateDoc(doc(db("unverified"), "users", "unverified"), { verified: true }),
   );
   await assertFails(
-    updateDoc(doc(db("student"), "users", "student"), { role: "landlord" }),
+    updateDoc(doc(db("tenant"), "users", "tenant"), { role: "landlord" }),
   );
   await assertFails(
-    updateDoc(doc(db("student"), "users", "student"), { admin: true }),
+    updateDoc(doc(db("tenant"), "users", "tenant"), { admin: true }),
   );
 });
 test("verified owners cannot publish their own listings or edit another owner", async () => {
@@ -162,45 +182,45 @@ test("unverified owners cannot create listings", async () => {
 });
 test("private conversation access requires participation, including for administrators", async () => {
   await assertSucceeds(
-    getDoc(doc(db("student"), "conversations", "p1_student")),
+    getDoc(doc(db("tenant"), "conversations", "p1_tenant")),
   );
-  await assertFails(getDoc(doc(db("stranger"), "conversations", "p1_student")));
-  await assertFails(getDoc(doc(db("admin"), "conversations", "p1_student")));
+  await assertFails(getDoc(doc(db("stranger"), "conversations", "p1_tenant")));
+  await assertFails(getDoc(doc(db("admin"), "conversations", "p1_tenant")));
 });
 test("participants can atomically send messages, strangers cannot spoof sender", async () => {
   const send = (uid, sender = uid) => {
     const d = db(uid),
       b = writeBatch(d);
-    b.set(doc(d, "conversations", "p1_student", "messages", "m1"), {
+    b.set(doc(d, "conversations", "p1_tenant", "messages", "m1"), {
       senderId: sender,
       text: "Hello",
       createdAt: serverTimestamp(),
     });
-    b.update(doc(d, "conversations", "p1_student"), {
+    b.update(doc(d, "conversations", "p1_tenant"), {
       lastMessage: "Hello",
       lastSender: uid,
       updatedAt: serverTimestamp(),
     });
     return b.commit();
   };
-  await assertFails(send("stranger", "student"));
-  await assertFails(send("student", "owner"));
-  await assertSucceeds(send("student"));
+  await assertFails(send("stranger", "tenant"));
+  await assertFails(send("tenant", "owner"));
+  await assertSucceeds(send("tenant"));
 });
 test("blocking prevents further messages", async () => {
   await assertSucceeds(
-    setDoc(doc(db("student"), "users", "student", "blocks", "owner"), {
+    setDoc(doc(db("tenant"), "users", "tenant", "blocks", "owner"), {
       createdAt: serverTimestamp(),
     }),
   );
   const d = db("owner"),
     b = writeBatch(d);
-  b.set(doc(d, "conversations", "p1_student", "messages", "blocked"), {
+  b.set(doc(d, "conversations", "p1_tenant", "messages", "blocked"), {
     senderId: "owner",
     text: "Hello",
     createdAt: serverTimestamp(),
   });
-  b.update(doc(d, "conversations", "p1_student"), {
+  b.update(doc(d, "conversations", "p1_tenant"), {
     lastMessage: "Hello",
     lastSender: "owner",
     updatedAt: serverTimestamp(),
@@ -239,12 +259,12 @@ test("javascript photo URLs are rejected", async () => {
 });
 test("suspended accounts cannot message or change profiles", async () => {
   await env.withSecurityRulesDisabled((c) =>
-    updateDoc(doc(c.firestore(), "users", "student"), { disabled: true }),
+    updateDoc(doc(c.firestore(), "users", "tenant"), { disabled: true }),
   );
   await assertFails(
-    updateDoc(doc(db("student"), "users", "student"), { name: "Changed" }),
+    updateDoc(doc(db("tenant"), "users", "tenant"), { name: "Changed" }),
   );
-  await assertFails(getDoc(doc(db("student"), "conversations", "p1_student")));
+  await assertFails(getDoc(doc(db("tenant"), "conversations", "p1_tenant")));
 });
 test("verified owner creates property and inventory; admin publishes; public reads rooms", async () => {
   const d = db("owner");
@@ -305,8 +325,8 @@ test("new user registration and private favorites work without privilege fields"
   const d = db("newuser");
   await assertSucceeds(
     setDoc(doc(d, "users", "newuser"), {
-      name: "New Student",
-      role: "student",
+      name: "New Tenant",
+      role: "tenant",
       verified: false,
       disabled: false,
       createdAt: serverTimestamp(),
@@ -335,7 +355,7 @@ test("conversation creation and viewing requests preserve participants", async (
   await assertSucceeds(
     setDoc(doc(d, "conversations", "p1_stranger"), {
       propertyId: "p1",
-      studentId: "stranger",
+      tenantId: "stranger",
       ownerId: "owner",
       participants: ["stranger", "owner"],
       title: "Rules test property",
@@ -349,7 +369,7 @@ test("conversation creation and viewing requests preserve participants", async (
   await assertSucceeds(
     setDoc(doc(d, "viewingRequests", "v1"), {
       conversationId: "p1_stranger",
-      studentId: "stranger",
+      tenantId: "stranger",
       ownerId: "owner",
       participants: ["stranger", "owner"],
       date: "2026-12-01T10:00:00.000Z",
@@ -362,35 +382,110 @@ test("conversation creation and viewing requests preserve participants", async (
       status: "confirmed",
     }),
   );
-  await assertFails(getDoc(doc(db("student"), "viewingRequests", "v1")));
+  await assertFails(getDoc(doc(db("tenant"), "viewingRequests", "v1")));
 });
 test("offline retry with stable ID delivers only once", async () => {
-  const d = db("student");
+  const d = db("tenant");
   const send = () =>
     runTransaction(d, async (tx) => {
       const ref = doc(
         d,
         "conversations",
-        "p1_student",
+        "p1_tenant",
         "messages",
         "stable-id",
       );
       if ((await tx.get(ref)).exists()) return;
       tx.set(ref, {
-        senderId: "student",
+        senderId: "tenant",
         text: "One message",
         createdAt: serverTimestamp(),
       });
-      tx.update(doc(d, "conversations", "p1_student"), {
+      tx.update(doc(d, "conversations", "p1_tenant"), {
         lastMessage: "One message",
-        lastSender: "student",
+        lastSender: "tenant",
         updatedAt: serverTimestamp(),
       });
     });
   await assertSucceeds(send());
   await assertSucceeds(send());
   const messages = await getDocs(
-    query(collection(d, "conversations", "p1_student", "messages"), limit(50)),
+    query(collection(d, "conversations", "p1_tenant", "messages"), limit(50)),
   );
   if (messages.size !== 1) throw Error("Duplicate delivery");
+});
+
+test("unverified email cannot access tenant actions even with an existing profile", async () => {
+  const unverifiedEmail = env.authenticatedContext("tenant", { email_verified: false }).firestore();
+  await assertFails(setDoc(doc(unverifiedEmail, "favorites", "tenant_p1"), {
+    userId: "tenant", propertyId: "p1", createdAt: serverTimestamp(),
+  }));
+  await assertFails(updateDoc(doc(unverifiedEmail, "users", "tenant"), { name: "Changed" }));
+});
+test("signup cannot self-assign owner verification", async () => {
+  await assertFails(setDoc(doc(db("newowner"), "users", "newowner"), {
+    ...profile("landlord", true), createdAt: serverTimestamp(),
+  }));
+});
+
+test("landlord approval requires an admin-reviewed application and atomic profile update", async () => {
+  await assertFails(updateDoc(doc(db("admin"), "users", "unverified"), {
+    role: "landlord", verified: true,
+  }));
+  const d = db("admin"), batch = writeBatch(d);
+  batch.update(doc(d, "landlordApplications", "unverified"), {
+    status: "approved",
+    missingItems: [],
+    reviewNotes: "Permits reviewed.",
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.update(doc(d, "users", "unverified"), { role: "landlord", verified: true });
+  await assertSucceeds(batch.commit());
+});
+
+test("tenant cannot approve a landlord application", async () => {
+  await assertFails(updateDoc(doc(db("tenant"), "landlordApplications", "unverified"), {
+    status: "approved",
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }));
+});
+
+const clientSave = (extra = {}) => {
+  const { available, capacity, lastRoomId, status, createdAt, updatedAt, vacancyConfirmedAt, ...form } = listing();
+  return { ...form, video: "", ...extra, ownerId: "owner", status: "pending", updatedAt: serverTimestamp() };
+};
+const newListing = (extra) => ({
+  ...clientSave(extra),
+  available: 0,
+  capacity: 0,
+  lastRoomId: "",
+  createdAt: serverTimestamp(),
+  vacancyConfirmedAt: serverTimestamp(),
+});
+const photo = (i) => `https://res.cloudinary.com/demo/image/upload/v1/dormpath/p${i}.webp`;
+
+test("verified landlord can save a new listing exactly as the client sends it", async () => {
+  await assertSucceeds(setDoc(doc(db("owner"), "properties", "new1"), newListing()));
+  await assertSucceeds(setDoc(doc(db("owner"), "properties", "new2"), newListing({
+    video: "https://res.cloudinary.com/demo/video/upload/v1/dormpath/tour.mp4",
+    photos: [photo(1), photo(2)],
+  })));
+});
+
+test("listing save rejects external videos and more than 8 photos", async () => {
+  await assertFails(setDoc(doc(db("owner"), "properties", "bad1"), newListing({ video: "https://example.com/tour.mp4" })));
+  await assertFails(setDoc(doc(db("owner"), "properties", "bad2"), newListing({
+    photos: Array.from({ length: 9 }, (_, i) => photo(i)),
+  })));
+});
+
+test("unverified landlord cannot save a listing", async () => {
+  await assertFails(setDoc(doc(db("unverified"), "properties", "new3"), { ...newListing(), ownerId: "unverified" }));
+});
+
+test("owner edit resubmits the listing for moderation", async () => {
+  await assertSucceeds(updateDoc(doc(db("owner"), "properties", "p1"), clientSave({ description: "Updated description" })));
+  await assertFails(updateDoc(doc(db("owner"), "properties", "p1"), { ...clientSave(), status: "published" }));
 });
