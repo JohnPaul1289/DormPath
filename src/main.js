@@ -607,7 +607,7 @@ function appLayout(content) {
           </div>
         </header>
 
-        ${isLandlord && !api.profile?.verified ? `<div class="connection-banner" style="background:#fff7ed; color:#9a3412; border-color:#fdba74;">Landlord publishing is locked until an administrator approves every permit. <a href="#/profile" style="font-weight:800; color:inherit;">Review or complete your permit application</a>.</div>` : ""}
+        ${isLandlord && !api.profile?.verified && !api.isAdmin ? `<div class="connection-banner" style="background:#fff7ed; color:#9a3412; border-color:#fdba74;">Landlord publishing is locked until an administrator approves every permit. <a href="#/profile" style="font-weight:800; color:inherit;">Review or complete your permit application</a>.</div>` : ""}
 
         ${
           !navigator.onLine
@@ -1774,8 +1774,47 @@ async function profilePage() {
       </div>
 
       ${
-        !api.profile?.verified
+        api.profile?.verified || landlordApplication?.status === "approved"
           ? `
+      <div class="profile-card" id="landlord-verification" style="border: 1px solid rgba(16, 185, 129, 0.35); background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.01) 100%);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:rgba(16, 185, 129, 0.15); color:var(--success); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              ${icon("shield-check")}
+            </div>
+            <div>
+              <h3 style="margin:0 0 4px; font-size:1.125rem; color:var(--text-main);">Landlord Permits Approved & Verified</h3>
+              <p style="margin:0; font-size:0.875rem; color:var(--text-secondary);">
+                Your permits have been verified by an administrator. You can publish properties and manage room vacancies.
+              </p>
+            </div>
+          </div>
+          <span class="admin-badge badge-verified" style="font-size:0.8125rem; padding:6px 14px;">
+            ${icon("badge-check")} Permit-Approved Owner
+          </span>
+        </div>
+
+        ${
+          landlordApplication
+            ? `
+        <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; margin-top:12px;">
+          <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:10px;">
+            Verified Permit Reference Record
+          </div>
+          <div class="profile-grid-2" style="font-size:0.8125rem;">
+            <div><strong>Legal Owner Name:</strong> ${e(landlordApplication.legalName || "—")}</div>
+            <div><strong>Registered Property:</strong> ${e(landlordApplication.propertyAddress || "—")}</div>
+            <div><strong>Proof of Ownership / Lease:</strong> ${e(landlordApplication.proofOfOwnershipRef || "—")}</div>
+            <div><strong>Business Permit:</strong> ${e(landlordApplication.businessPermitNumber || "—")} (exp: ${e(landlordApplication.businessPermitExpires || "—")})</div>
+            <div><strong>Barangay Clearance:</strong> ${e(landlordApplication.barangayClearanceNumber || "—")} (exp: ${e(landlordApplication.barangayClearanceExpires || "—")})</div>
+            <div><strong>Fire Safety Certificate:</strong> ${e(landlordApplication.fireSafetyNumber || "—")} (exp: ${e(landlordApplication.fireSafetyExpires || "—")})</div>
+          </div>
+        </div>
+        `
+            : ""
+        }
+      </div>`
+          : `
       <div class="profile-card" id="landlord-verification">
         <div class="profile-section-heading">${icon("badge-check")} Landlord permit review</div>
         <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:16px;">
@@ -1804,7 +1843,6 @@ async function profilePage() {
           <button class="button primary" type="submit">${landlordApplication ? "Update and resubmit" : "Submit for admin review"}</button>
         </form>
       </div>`
-          : ""
       }
 
       <!-- Security: Password Management -->

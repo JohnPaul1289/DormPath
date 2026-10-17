@@ -117,12 +117,31 @@ async function ensureProfile(user) {
   });
   return (await getDoc(ref)).data();
 }
+let userSnapshotUnsub = null;
+
+export async function refreshProfile() {
+  if (!currentUser) return null;
+  try {
+    const snap = await getDoc(doc(db, "users", currentUser.uid));
+    if (snap.exists()) {
+      profile = { ...profile, ...snap.data() };
+    }
+  } catch (err) {
+    console.warn("[DormPath] refreshProfile error:", err);
+  }
+  return profile;
+}
+
 export function watchAuth(fn) {
   if (!configured) {
     fn(null);
     return () => {};
   }
   return onAuthStateChanged(auth, async (user) => {
+    if (userSnapshotUnsub) {
+      userSnapshotUnsub();
+      userSnapshotUnsub = null;
+    }
     if (user && !user.emailVerified) {
       currentUser = null;
       profile = null;
@@ -137,6 +156,22 @@ export function watchAuth(fn) {
         if (auth.currentUser?.uid !== user.uid) return;
         if (profile.disabled) { await signOut(auth); throw Error("This account is suspended."); }
         isAdmin = Boolean((await user.getIdTokenResult()).claims.admin);
+
+        // Real-time listener for profile changes (such as landlord approval)
+        userSnapshotUnsub = onSnapshot(doc(db, "users", user.uid), (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const wasVerified = profile?.verified;
+            const prevRole = profile?.role;
+            profile = { ...profile, ...data };
+            if (data.disabled) {
+              signOut(auth).catch(() => {});
+            }
+            if (wasVerified !== data.verified || prevRole !== data.role) {
+              fn(user);
+            }
+          }
+        }, (err) => console.warn("[DormPath] Profile listener error:", err));
       } else {
         profile = null;
         isAdmin = false;
@@ -432,6 +467,9 @@ export async function reviewLandlordApplication(uid, status, missingItems = [], 
     createdAt: serverTimestamp(),
   });
   await batch.commit();
+  if (currentUser?.uid === uid) {
+    profile = { ...profile, role: status === "approved" ? "landlord" : "tenant", verified: status === "approved" };
+  }
 }
 export async function propertyStatus(id, status) {
   requireUser();
