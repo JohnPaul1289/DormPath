@@ -43,24 +43,30 @@ import {
 import { validateRoom } from "./domain";
 import { cached, clearPrivate, privateEnabled } from "./offline";
 const env = import.meta.env;
+const firebaseApiKey = env.VITE_FIREBASE_API_KEY || "AIzaSyCYm3Yya7xzFn8Jt_jtHJ1PChjeKuXPi2I";
+const firebaseAuthDomain = env.VITE_FIREBASE_AUTH_DOMAIN || "dormpath.firebaseapp.com";
+const firebaseProjectId = env.VITE_FIREBASE_PROJECT_ID || "dormpath";
+const firebaseAppId = env.VITE_FIREBASE_APP_ID || "1:246481762422:web:5825ee496b5bc1dd3d4757";
+const appCheckSiteKey = env.VITE_APPCHECK_SITE_KEY || "6LdyA_MtAAAAAC_4KVFvn4N2r_JvUFVla4TwO4HV";
+
 export const configured = Boolean(
-  env.VITE_FIREBASE_API_KEY &&
-  env.VITE_FIREBASE_PROJECT_ID &&
-  env.VITE_FIREBASE_AUTH_DOMAIN &&
-  env.VITE_FIREBASE_APP_ID,
+  firebaseApiKey &&
+  firebaseProjectId &&
+  firebaseAuthDomain &&
+  firebaseAppId,
 );
 export let db, auth, appCheck = null;
 if (configured) {
   const app = initializeApp({
-    apiKey: env.VITE_FIREBASE_API_KEY,
-    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: env.VITE_FIREBASE_PROJECT_ID,
-    appId: env.VITE_FIREBASE_APP_ID,
+    apiKey: firebaseApiKey,
+    authDomain: firebaseAuthDomain,
+    projectId: firebaseProjectId,
+    appId: firebaseAppId,
   });
-  if (env.VITE_APPCHECK_SITE_KEY) {
+  if (appCheckSiteKey) {
     try {
       appCheck = initializeAppCheck(app, {
-        provider: new ReCaptchaEnterpriseProvider(env.VITE_APPCHECK_SITE_KEY),
+        provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
         isTokenAutoRefreshEnabled: true,
       });
       console.log("[DormPath] Firebase App Check connected via reCAPTCHA Enterprise.");
