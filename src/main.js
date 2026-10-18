@@ -658,7 +658,7 @@ function publicLayout(content) {
           </a>
 
           <div class="nav-actions">
-            ${location.hash && !["#/", "#/home"].includes(location.hash) ? `<a href="#/home" class="button outline small">${icon("arrow-left")} Back to home</a>` : ""}
+            ${location.hash && !["#/", "#/home"].includes(location.hash) ? `<a href="#/home" class="button outline small">${icon("arrow-left")} <span class="hide-mobile-xs">Back to home</span><span class="show-mobile-xs-only">Back</span></a>` : ""}
             <button class="button text-button" data-action="theme" aria-label="Toggle appearance" title="Toggle Dark/Light Mode">
               ${icon("sun-moon")}
             </button>
@@ -677,7 +677,7 @@ function publicLayout(content) {
                      </span>
                      <span>${e(api.profile?.name || "Account")}</span>
                    </a>`
-                : `<a href="#/login" class="button primary small">Log In ${icon("arrow-right")}</a>`
+                : `<a href="#/login" class="button primary small"><span class="hide-mobile-xs">Log In</span><span class="show-mobile-xs-only">Login</span> ${icon("arrow-right")}</a>`
             }
           </div>
         </div>
@@ -869,11 +869,17 @@ function appLayout(content) {
       <div class="app-workspace">
         <header class="app-topbar">
           <div class="app-topbar-left">
-            <div class="badge badge-outline" style="gap:6px; font-weight:600;">
+            <a href="#/home" class="mobile-topbar-brand" title="DormPath — Tuguegarao">
+              <span class="mobile-topbar-logo-box">
+                <img src="/domi-app-icon.png" alt="DormPath" class="mobile-topbar-icon" />
+              </span>
+              <span class="mobile-topbar-text">Dorm<strong>Path</strong></span>
+            </a>
+            <div class="badge badge-outline desktop-only-badge" style="gap:6px; font-weight:600;">
               ${icon("map-pin")} <span>Tuguegarao & Peñablanca</span>
             </div>
-            <button type="button" class="button outline small" data-action="open-notifications" aria-label="Notifications" style="position:relative; display:inline-flex; align-items:center; gap:6px;">
-              ${icon("bell")} Alerts ${(isLandlord && !api.profile?.verified) ? `<span class="topbar-alert-dot"></span>` : ""}
+            <button type="button" class="button outline small app-alerts-btn" data-action="open-notifications" aria-label="Notifications" style="position:relative; display:inline-flex; align-items:center; gap:6px;">
+              ${icon("bell")} <span class="hide-mobile-xs">Alerts</span> ${(isLandlord && !api.profile?.verified) ? `<span class="topbar-alert-dot"></span>` : ""}
             </button>
           </div>
           <div class="app-topbar-right" style="display:flex; align-items:center; gap:8px;">
@@ -900,35 +906,38 @@ function appLayout(content) {
       </div>
 
       <nav class="mobile-nav">
-        <a href="#/dashboard" class="${current === "dashboard" ? "active" : ""}">
-          ${icon("layout-dashboard")} <span>Dashboard</span>
-        </a>
-        <a href="#/search" class="${current === "search" ? "active" : ""}">
-          ${icon("search")} <span>Explore</span>
-        </a>
-        <a href="#/map" class="${current === "map" ? "active" : ""}">
-          ${icon("map")} <span>Area Map</span>
-        </a>
-        <a href="#/domi" class="${current === "domi" ? "active" : ""}">
-          ${icon("bot")} <span>DOMI</span>
-        </a>
         ${
           isLandlord
             ? `
-          <a href="#/properties" class="${current === "properties" ? "active" : ""}">
+          <a href="#/dashboard" class="${current === "dashboard" ? "active" : ""}">
+            ${icon("layout-dashboard")} <span>Dashboard</span>
+          </a>
+          <a href="#/properties" class="${["properties", "add-property", "edit-property", "property-new"].includes(current) ? "active" : ""}">
             ${icon("building-2")} <span>Properties</span>
+          </a>
+          <a href="#/search" class="${current === "search" || current === "map" || current === "explore" ? "active" : ""}">
+            ${icon("search")} <span>Explore</span>
+          </a>
+          <a href="#/messages" class="${current === "messages" ? "active" : ""}">
+            ${icon("messages-square")} <span>Chat</span>
           </a>
         `
             : `
-          <a href="#/favorites" class="${current === "favorites" ? "active" : ""}">
-            ${icon("heart")} <span>Saved</span>
+          <a href="#/search" class="${current === "search" || current === "explore" ? "active" : ""}">
+            ${icon("search")} <span>Explore</span>
+          </a>
+          <a href="#/map" class="${current === "map" ? "active" : ""}">
+            ${icon("map")} <span>Map</span>
+          </a>
+          <a href="#/domi" class="nav-domi-highlight ${current === "domi" ? "active" : ""}">
+            ${icon("bot")} <span>DOMI AI</span>
+          </a>
+          <a href="#/messages" class="${current === "messages" ? "active" : ""}">
+            ${icon("messages-square")} <span>Chat</span>
           </a>
         `
         }
-        <a href="#/messages" class="${current === "messages" ? "active" : ""}">
-          ${icon("messages-square")} <span>Chat</span>
-        </a>
-        <button type="button" class="mobile-menu-btn" data-action="toggle-mobile-drawer" aria-label="More options" style="background:transparent; border:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; color:var(--text-secondary); cursor:pointer; font-size:0.6875rem; font-weight:600;">
+        <button type="button" class="mobile-menu-btn" data-action="toggle-mobile-drawer" aria-label="More options">
           ${icon("menu")} <span>More</span>
         </button>
       </nav>
@@ -2071,7 +2080,7 @@ async function messagesPage(id) {
   const isThreadUnread = selected ? (Boolean(state.manualUnread?.[id]) || (selected.lastSender !== api.currentUser.uid && selected.updatedAt?.seconds > (selected.readAt?.[api.currentUser.uid]?.seconds || 0))) : false;
 
   return `
-    <div class="messenger-layout">
+    <div class="messenger-layout ${selected ? "has-active-chat" : ""}">
       <aside class="conversations-sidebar">
         <div class="conversations-header" style="display:flex; justify-content:space-between; align-items:center;">
           <span>Inbox</span>
@@ -2115,10 +2124,15 @@ async function messagesPage(id) {
           selected
             ? `
           <header class="chat-header">
-            <div>
-              <strong style="font-size:1.0625rem; display:block;">${e(selected.title)}</strong>
-              <div style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
-                <span class="online-indicator"></span> Direct encrypted conversation
+            <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+              <a href="#/messages" class="button outline small chat-back-to-inbox" aria-label="Back to conversations" title="Back to Inbox">
+                ${icon("arrow-left")} <span>Inbox</span>
+              </a>
+              <div style="min-width:0;">
+                <strong style="font-size:1.0625rem; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e(selected.title)}</strong>
+                <div style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                  <span class="online-indicator"></span> Direct encrypted conversation
+                </div>
               </div>
             </div>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -2951,7 +2965,7 @@ function propertyForm(p = {}) {
             <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">Use a descriptive name tenants can easily search and identify.</small>
           </label>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px;">
+          <div class="form-row-2col" style="margin-top:14px;">
             <label>Barangay (Tuguegarao & Peñablanca)
               <select name="barangay" id="property-barangay-select" required>
                 <option value="">Select Barangay...</option>
@@ -4000,8 +4014,12 @@ async function route() {
 
   const cleanHash = location.hash.replace(/^#\/?/, "").trim();
   const segments = cleanHash ? cleanHash.split("/") : [];
-  const page = segments[0] || "home";
+  let page = segments[0] || "home";
   const id = segments[1] || "";
+
+  // Normalize aliases for intuitive mobile routing
+  if (page === "explore") page = "search";
+  if (["property-new", "new-property", "new-listing"].includes(page)) page = "add-property";
 
   // Determine Layout Structure & Page Types
   const isAuth = ["login", "register", "reset-password"].includes(page);
@@ -4763,14 +4781,23 @@ async function askDomi(text) {
 
   renderChat(true);
 
-  // Call free AI with fallback
-  const reply = await askDomiAI(q, state.domiHistory, state.properties);
-  const finishTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  state.domiHistory.push({ role: "domi", text: reply, time: finishTime });
-
-  renderChat(false);
-  state.domiBusy = false;
-  $("#domi-chat-input")?.focus();
+  try {
+    const reply = await askDomiAI(q, state.domiHistory, state.properties);
+    const finishTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    state.domiHistory.push({ role: "domi", text: reply, time: finishTime });
+  } catch (err) {
+    console.error("DOMI AI error:", err);
+    const finishTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    state.domiHistory.push({
+      role: "domi",
+      text: "I ran into a temporary connection issue reaching the AI network, but I can still assist you with verified boarding houses and rooms in Tuguegarao! Try asking about CSU, USL, SPUP, or rental budgets.",
+      time: finishTime,
+    });
+  } finally {
+    renderChat(false);
+    state.domiBusy = false;
+    $("#domi-chat-input")?.focus();
+  }
 }
 
 // Standards-based PWA installation
@@ -5750,7 +5777,12 @@ document.addEventListener("submit", async (event) => {
     originalButtonContents.set(b, b.innerHTML);
     b.disabled = true;
     const txt = b.textContent.trim();
-    b.innerHTML = `<span style="display:inline-flex; align-items:center; gap:8px;">${domiLoaderHtml("button")}<span>${txt || "Please wait..."}</span></span>`;
+    const isIconOnly = !txt || b.classList.contains("chat-send-btn") || b.classList.contains("chat-tool-btn");
+    if (isIconOnly) {
+      b.innerHTML = `<span style="display:inline-flex; align-items:center; justify-content:center;">${domiLoaderHtml("button")}</span>`;
+    } else {
+      b.innerHTML = `<span style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">${domiLoaderHtml("button")}<span>${txt}</span></span>`;
+    }
   });
   startLoading();
   const data = new FormData(form);
