@@ -985,9 +985,29 @@ label.check input[type="checkbox"] {
 /* Hero CTA Group */
 .hero-cta-group {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   margin-top: 28px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.hero-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  padding: 12px 24px;
+  border-radius: var(--radius-full);
+}
+
+.hero-btn-secondary,
+.hero-install-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: var(--radius-full);
 }
 
 .hero-cta-group .button {
@@ -1111,7 +1131,14 @@ label.check input[type="checkbox"] {
   to { transform: translateY(-10px); }
 }
 
+.hero-badges-wrapper {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .hero-floating-badge {
+  pointer-events: auto;
   position: absolute;
   z-index: 2;
   background: var(--bg-surface);
@@ -2092,27 +2119,42 @@ label.check input[type="checkbox"] {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 64px;
+  height: calc(60px + env(safe-area-inset-bottom, 0px));
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
   z-index: 50;
-  padding: 0 16px;
+  padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
   justify-content: space-around;
   align-items: center;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
 }
 
-.mobile-nav a {
+.mobile-nav a,
+.mobile-nav button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 2px;
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--text-muted);
+  padding: 4px 6px;
+  min-width: 44px;
+  text-decoration: none;
+  border: none;
+  background: transparent;
+  transition: color var(--duration-fast);
 }
 
 .mobile-nav a.active {
   color: var(--primary);
+}
+
+.mobile-nav a svg,
+.mobile-nav button svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* ==============================================================================
@@ -2124,12 +2166,10 @@ label.check input[type="checkbox"] {
   }
   .app-workspace {
     margin-left: 0;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
   .mobile-nav {
     display: flex;
-  }
-  .app-workspace {
-    padding-bottom: 72px;
   }
   .auth-card-wrapper {
     grid-template-columns: 1fr;
@@ -2140,12 +2180,27 @@ label.check input[type="checkbox"] {
   .hero-section {
     grid-template-columns: 1fr;
     padding-top: 40px;
+    gap: 36px;
+  }
+  .hero-content {
+    order: 1;
+    text-align: center;
+  }
+  .hero-content .overline {
+    justify-content: center;
+  }
+  .hero-content p.hero-sub {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero-cta-group {
+    justify-content: center;
   }
   .hero-graphic {
-    order: -1;
+    order: 2;
   }
   .hero-mascot-img {
-    width: 220px;
+    width: 200px;
   }
   .trust-metrics-grid {
     grid-template-columns: 1fr 1fr;
@@ -2173,7 +2228,117 @@ label.check input[type="checkbox"] {
   }
 }
 
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 28px 16px 36px;
+    gap: 22px;
+  }
+  .hero-content h1 {
+    font-size: 2.15rem;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .hero-content p.hero-sub {
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    margin-bottom: 20px;
+  }
+  .hero-cta-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  .hero-btn-primary {
+    grid-column: 1 / -1;
+    justify-content: center;
+    padding: 12px 20px !important;
+    font-size: 0.9375rem !important;
+    border-radius: var(--radius-full) !important;
+  }
+  .hero-btn-secondary,
+  .hero-install-cta {
+    justify-content: center;
+    padding: 10px 12px !important;
+    font-size: 0.8125rem !important;
+    border-radius: var(--radius-full) !important;
+  }
+  .hero-graphic {
+    order: 2;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 6px;
+  }
+  .hero-graphic-bg {
+    width: 210px;
+    height: 210px;
+  }
+  .hero-mascot-img {
+    width: 145px;
+    margin-bottom: 14px;
+  }
+  .hero-badges-wrapper {
+    position: static !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    width: 100% !important;
+    flex-wrap: wrap !important;
+  }
+  .hero-floating-badge {
+    position: static !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 8px 14px !important;
+    border-radius: var(--radius-md) !important;
+    flex: 1 1 140px !important;
+    max-width: 200px !important;
+    box-shadow: var(--shadow-sm) !important;
+    gap: 8px !important;
+  }
+  .hero-floating-badge strong {
+    font-size: 0.8125rem !important;
+    line-height: 1.2 !important;
+  }
+  .hero-floating-badge span {
+    font-size: 0.6875rem !important;
+    line-height: 1.2 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-navbar-inner {
+    padding: 0 14px;
+    height: 60px;
+  }
+  .public-navbar .install-apk-btn {
+    display: none !important;
+  }
+  .public-navbar .nav-actions {
+    gap: 8px;
+  }
+  .public-navbar .auth-brand {
+    gap: 8px;
+  }
+  .public-navbar .brand-text {
+    font-size: 1.15rem;
+  }
+  .public-navbar .button.primary.small {
+    padding: 6px 14px;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    border-radius: var(--radius-full);
+  }
+}
+
 @media (max-width: 576px) {
+  .property-grid {
+    grid-template-columns: 1fr;
+  }
   .hero-search-card {
     flex-direction: column;
     align-items: stretch;

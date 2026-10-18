@@ -639,9 +639,19 @@ function appLayout(content) {
         <a href="#/domi" class="${current === "domi" ? "active" : ""}">
           ${icon("bot")} <span>DOMI</span>
         </a>
-        <a href="#/favorites" class="${current === "favorites" ? "active" : ""}">
-          ${icon("heart")} <span>Saved</span>
-        </a>
+        ${
+          isLandlord
+            ? `
+          <a href="#/properties" class="${current === "properties" ? "active" : ""}">
+            ${icon("building-2")} <span>Properties</span>
+          </a>
+        `
+            : `
+          <a href="#/favorites" class="${current === "favorites" ? "active" : ""}">
+            ${icon("heart")} <span>Saved</span>
+          </a>
+        `
+        }
         <a href="#/messages" class="${current === "messages" ? "active" : ""}">
           ${icon("messages-square")} <span>Chat</span>
         </a>
@@ -809,14 +819,14 @@ function home() {
           Discover verified boarding houses, dormitories, and apartments near your university. Your next chapter starts with the right room.
         </p>
 
-        <div class="hero-cta-group" style="display:flex; gap:14px; margin-top:24px; flex-wrap:wrap; align-items:center;">
-          <a href="#/search" class="button primary large" style="font-weight:700; height:50px; padding:0 26px; border-radius:var(--radius-full); box-shadow:0 6px 20px -3px rgba(37,99,235,0.4); display:inline-flex; align-items:center; gap:8px;">
+        <div class="hero-cta-group">
+          <a href="#/search" class="button primary large hero-btn-primary">
             ${icon("search")} <span>Explore Available Rooms</span>
           </a>
-          <a href="#/map" class="button outline large" style="font-weight:700; height:50px; padding:0 26px; border-radius:var(--radius-full); background:var(--bg-card); border-color:var(--border); display:inline-flex; align-items:center; gap:8px;">
+          <a href="#/map" class="button outline large hero-btn-secondary">
             ${icon("map")} <span>Area Map</span>
           </a>
-          <button type="button" class="button outline large" data-action="install-pwa" style="font-weight:700; height:50px; padding:0 22px; border-radius:var(--radius-full); background:var(--bg-card); border-color:var(--primary); color:var(--primary); display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+          <button type="button" class="button outline large hero-install-cta" data-action="install-pwa">
             ${icon("download")} <span>Install DormPath</span>
           </button>
         </div>
@@ -825,18 +835,20 @@ function home() {
       <div class="hero-graphic">
         <div class="hero-graphic-bg"></div>
         <img src="/domi.png" alt="DOMI Mascot" class="hero-mascot-img">
-        <div class="hero-floating-badge badge-top">
-          <span style="font-size:1.25rem;">🏠</span>
-          <div>
-            <strong>Verified Owners</strong>
-            <span>Admin-reviewed listings</span>
+        <div class="hero-badges-wrapper">
+          <div class="hero-floating-badge badge-top">
+            <span style="font-size:1.25rem;">🏠</span>
+            <div>
+              <strong>Verified Owners</strong>
+              <span>Admin-reviewed listings</span>
+            </div>
           </div>
-        </div>
-        <div class="hero-floating-badge badge-bottom">
-          <span style="font-size:1.25rem;">₱0</span>
-          <div>
-            <strong>100% Free for Tenants</strong>
-            <span>Direct contact & chat</span>
+          <div class="hero-floating-badge badge-bottom">
+            <span style="font-size:1.25rem;">₱0</span>
+            <div>
+              <strong>100% Free for Tenants</strong>
+              <span>Direct contact & chat</span>
+            </div>
           </div>
         </div>
       </div>
