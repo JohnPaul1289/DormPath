@@ -1,4 +1,4 @@
-const CACHE = "dormpath-v3";
+const CACHE = "dormpath-v4";
 const PRECACHE = ["/", "/domi-loader.png", "/domi-app-icon.png", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest", "/domi.png"];
 self.addEventListener("install", (event) => {
   event.waitUntil(

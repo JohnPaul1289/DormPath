@@ -451,6 +451,7 @@ export async function reviewLandlordApplication(uid, status, missingItems = [], 
   if (!["approved", "changes_requested", "rejected"].includes(status)) throw Error("Invalid review status.");
   const applicationRef = doc(db, "landlordApplications", uid);
   const userRef = doc(db, "users", uid);
+  const notifRef = doc(collection(db, "notifications"));
   const batch = writeBatch(db);
   batch.update(applicationRef, {
     status,
@@ -459,7 +460,11 @@ export async function reviewLandlordApplication(uid, status, missingItems = [], 
     reviewedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  batch.update(userRef, { role: status === "approved" ? "landlord" : "tenant", verified: status === "approved" });
+  const userUpdates = { verified: status === "approved" };
+  if (status === "approved") {
+    userUpdates.role = "landlord";
+  }
+  batch.update(userRef, userUpdates);
   batch.set(doc(collection(db, "auditLogs")), {
     actorId: currentUser.uid,
     collection: "landlordApplications",
@@ -467,10 +472,93 @@ export async function reviewLandlordApplication(uid, status, missingItems = [], 
     changes: { status, missingItems: status === "changes_requested" ? missingItems.slice(0, 9) : [] },
     createdAt: serverTimestamp(),
   });
+
+  // Create official notification for the landlord
+  let notifTitle = "Permit Application Status Updated";
+  let notifBody = reviewNotes || "Your permit application status has been updated.";
+  if (status === "changes_requested") {
+    notifTitle = "Action Required: Mayor's Permit Document Needed";
+    notifBody = reviewNotes || "Please upload your official Mayor's Permit scan in your profile to complete verification.";
+  } else if (status === "approved") {
+    notifTitle = "Congratulations! Landlord Verification Approved";
+    notifBody = "You are now a Verified Property Owner. You can publish listings and manage room vacancies.";
+  } else if (status === "rejected") {
+    notifTitle = "Landlord Application Declined";
+    notifBody = reviewNotes || "Your permit application could not be verified.";
+  }
+
+  batch.set(notifRef, {
+    userId: uid,
+    title: notifTitle.slice(0, 200),
+    body: notifBody.slice(0, 1000),
+    status,
+    missingItems: status === "changes_requested" ? missingItems.slice(0, 9) : [],
+    createdAt: serverTimestamp(),
+  });
+
   await batch.commit();
   if (currentUser?.uid === uid) {
-    profile = { ...profile, role: status === "approved" ? "landlord" : "tenant", verified: status === "approved" };
+    profile = { ...profile, ...userUpdates };
   }
+}
+export async function setUserRole(uid, role) {
+  requireUser();
+  if (!isAdmin) throw Error("Administrator access required.");
+  if (!["landlord", "tenant"].includes(role)) throw Error("Invalid role.");
+  await moderate("users", uid, { role });
+}
+export async function submitFeedback({ type = "suggestion", title, description }) {
+  requireUser();
+  if (!["suggestion", "bug", "general"].includes(type)) {
+    throw Error("Please specify whether this is a suggestion or bug report.");
+  }
+  const cleanTitle = String(title || "").trim();
+  const cleanDesc = String(description || "").trim();
+  if (!cleanTitle) throw Error("Please enter a summary or title.");
+  if (cleanTitle.length > 120) throw Error("Title must be 120 characters or fewer.");
+  if (!cleanDesc) throw Error("Please describe what needs to be fixed or added.");
+  if (cleanDesc.length > 2000) throw Error("Description must be 2000 characters or fewer.");
+
+  await addDoc(collection(db, "feedback"), {
+    userId: currentUser.uid,
+    userName: (profile?.name || currentUser.displayName || "User").slice(0, 80),
+    userRole: profile?.role || "tenant",
+    userEmail: (currentUser.email || "").slice(0, 100),
+    type,
+    title: cleanTitle,
+    description: cleanDesc,
+    status: "open",
+    adminNotes: "",
+    createdAt: serverTimestamp(),
+  });
+}
+export async function getMyFeedback() {
+  requireUser();
+  const items = rows(
+    await getDocs(
+      query(
+        collection(db, "feedback"),
+        where("userId", "==", currentUser.uid),
+        limit(50),
+      ),
+    ),
+  );
+  return items.sort((a, b) => {
+    const tA = a.createdAt?.toMillis?.() || (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+    const tB = b.createdAt?.toMillis?.() || (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+    return tB - tA;
+  });
+}
+export async function updateFeedbackStatus(id, status, adminNotes = "") {
+  requireUser();
+  if (!isAdmin) throw Error("Administrator access required.");
+  if (!["open", "in_review", "planned", "resolved", "closed"].includes(status)) {
+    throw Error("Invalid feedback status.");
+  }
+  await moderate("feedback", id, {
+    status,
+    adminNotes: String(adminNotes || "").trim().slice(0, 1000),
+  });
 }
 export async function propertyStatus(id, status) {
   requireUser();
@@ -742,16 +830,55 @@ export async function flushQueue() {
 }
 export async function notifications() {
   requireUser();
-  const [notes, favs] = await Promise.all([
-    getDocs(
+  let notes = [];
+  try {
+    const snap = await getDocs(
       query(
         collection(db, "notifications"),
         where("userId", "==", currentUser.uid),
         limit(30),
       ),
-    ),
-    favorites(),
-  ]);
+    );
+    notes = rows(snap);
+  } catch (err) {
+    console.warn("Notifications collection query:", err);
+  }
+
+  let favs = [];
+  try {
+    favs = await favorites();
+  } catch {}
+
+  const applicationAlerts = [];
+  try {
+    const appSnap = await getDoc(doc(db, "landlordApplications", currentUser.uid));
+    if (appSnap.exists()) {
+      const app = appSnap.data();
+      if (app.status === "changes_requested") {
+        applicationAlerts.push({
+          id: "app-status-changes",
+          title: "Action Required: Mayor's Permit Document Needed",
+          body: app.reviewNotes || "An administrator has requested permit document updates. Please upload your Mayor's permit scan in your profile to complete verification.",
+          status: "changes_requested",
+          missingItems: app.missingItems || ["Mayor's Permit Document"],
+          type: "action_required",
+          link: "#/profile",
+          createdAt: app.reviewedAt || app.updatedAt,
+        });
+      } else if (app.status === "rejected") {
+        applicationAlerts.push({
+          id: "app-status-rejected",
+          title: "Landlord Permit Application Declined",
+          body: app.reviewNotes || "Your permit application details did not match.",
+          status: "rejected",
+          type: "danger",
+          link: "#/profile",
+          createdAt: app.reviewedAt || app.updatedAt,
+        });
+      }
+    }
+  } catch {}
+
   const alerts = await Promise.all(
     favs.slice(0, 20).map(async (f) => {
       try {
@@ -769,7 +896,18 @@ export async function notifications() {
       }
     }),
   );
-  return [...rows(notes), ...alerts.filter(Boolean)];
+
+  const all = [...applicationAlerts, ...notes, ...alerts.filter(Boolean)];
+  const seen = new Set();
+  const unique = [];
+  for (const n of all) {
+    const key = `${n.id || ""}_${n.title || ""}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(n);
+    }
+  }
+  return unique;
 }
 export async function report(propertyId, reason) {
   requireUser();
@@ -843,16 +981,20 @@ export async function moderate(name, id, changes) {
   });
   await batch.commit();
 }
-export async function uploadMedia(file, onProgress) {
+export async function uploadMedia(file, onProgress, scope = null) {
   requireUser();
   if (!file) throw Error("No file selected.");
+  const isAudio = file.type.startsWith("audio/");
   const isVideo = file.type.startsWith("video/");
   const isImage = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
-  if (!isImage && !isVideo) {
-    throw Error("Please choose an image (JPEG, PNG, WebP) or video (MP4, WebM, MOV).");
+  if (!isImage && !isVideo && !isAudio) {
+    throw Error("Please choose an image (JPEG, PNG, WebP), video, or audio recording.");
   }
   if (isImage && file.size > 10 * 1024 * 1024) {
     throw Error("Image photo must be under 10 MB.");
+  }
+  if (isAudio && file.size > 20 * 1024 * 1024) {
+    throw Error("Voice recording must be under 20 MB.");
   }
   if (isVideo && file.size > 40 * 1024 * 1024) {
     throw Error("Video walkthrough must be under 40 MB.");
@@ -899,9 +1041,13 @@ export async function uploadMedia(file, onProgress) {
       headers: {
         Authorization: `Bearer ${idToken}`,
         "Content-Type": "application/json",
+        ...(scope ? { "X-Upload-Scope": scope } : {}),
         ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
       },
-      body: JSON.stringify({ resourceType: isVideo ? "video" : "image" }),
+      body: JSON.stringify({
+        resourceType: (isVideo || isAudio) ? "video" : "image",
+        scope,
+      }),
     });
 
     if (signRes.ok) {
@@ -909,7 +1055,7 @@ export async function uploadMedia(file, onProgress) {
       if (signData.signature && signData.apiKey && signData.cloudName) {
         return await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
-          const targetUrl = `https://api.cloudinary.com/v1_1/${encodeURIComponent(signData.cloudName)}/${signData.resourceType || (isVideo ? "video" : "image")}/upload`;
+          const targetUrl = `https://api.cloudinary.com/v1_1/${encodeURIComponent(signData.cloudName)}/${signData.resourceType || (isVideo || isAudio ? "video" : "image")}/upload`;
           xhr.open("POST", targetUrl);
 
           if (xhr.upload && onProgress) {
@@ -962,6 +1108,8 @@ export async function uploadMedia(file, onProgress) {
     xhr.setRequestHeader("Authorization", `Bearer ${idToken}`);
     xhr.setRequestHeader("Content-Type", contentType);
     if (isVideo) xhr.setRequestHeader("X-Resource-Type", "video");
+    if (isAudio) xhr.setRequestHeader("X-Resource-Type", "audio");
+    if (scope) xhr.setRequestHeader("X-Upload-Scope", scope);
     if (appCheckToken) xhr.setRequestHeader("X-Firebase-AppCheck", appCheckToken);
 
     if (xhr.upload && onProgress) {
@@ -994,4 +1142,12 @@ export async function uploadMedia(file, onProgress) {
 
 export async function uploadPhoto(file, onProgress) {
   return uploadMedia(file, onProgress);
+}
+
+export async function uploadChatMedia(file, onProgress) {
+  return uploadMedia(file, onProgress, "chat");
+}
+
+export async function uploadPermitDocument(file, onProgress) {
+  return uploadMedia(file, onProgress, "permit");
 }

@@ -91,6 +91,17 @@ import {
   Car,
   Bath,
   BookOpen,
+  Mic,
+  Paperclip,
+  Play,
+  Pause,
+  Video,
+  Square,
+  WashingMachine,
+  Lightbulb,
+  Bug,
+  Wrench,
+  ThumbsUp,
 } from "lucide";
 
 const icons = {
@@ -172,6 +183,17 @@ const icons = {
   Car,
   Bath,
   BookOpen,
+  Mic,
+  Paperclip,
+  Play,
+  Pause,
+  Video,
+  Square,
+  WashingMachine,
+  Lightbulb,
+  Bug,
+  Wrench,
+  ThumbsUp,
 };
 
 import L from "leaflet";
@@ -251,6 +273,211 @@ function toast(message) {
     clearTimeout(toast.timer);
     toast.timer = setTimeout(() => t.classList.remove("show"), 5500);
   }
+}
+
+function formatMissingItem(item) {
+  if (!item) return "";
+  const s = String(item).trim();
+  if (s === "mayorsPermitUrl" || s.toLowerCase() === "mayorspermiturl") return "Mayor's Permit Document";
+  if (s.toLowerCase().endsWith("url")) return s.replace(/url$/i, " Scan").replace(/([A-Z])/g, " $1").trim();
+  return s.replace(/([A-Z])/g, " $1").trim();
+}
+
+let activeLightboxState = null;
+function openPhotoLightbox(photoUrl, allPhotos = []) {
+  if (!photoUrl) return;
+  const photos = allPhotos && allPhotos.length ? allPhotos : [photoUrl];
+  let currentIndex = photos.indexOf(photoUrl);
+  if (currentIndex === -1) currentIndex = 0;
+
+  activeLightboxState = {
+    photos,
+    index: currentIndex,
+    next() {
+      this.index = (this.index + 1) % this.photos.length;
+      this.render();
+    },
+    prev() {
+      this.index = (this.index - 1 + this.photos.length) % this.photos.length;
+      this.render();
+    },
+    set(idx) {
+      this.index = Math.max(0, Math.min(idx, this.photos.length - 1));
+      this.render();
+    },
+    render() {
+      const current = this.photos[this.index] || photoUrl;
+      modal(`
+        <div class="photo-lightbox-modal">
+          <div class="photo-lightbox-header">
+            <div class="photo-lightbox-title">
+              <span class="photo-lightbox-pill">
+                ${icon("image")}
+                <span>${this.photos.length > 1 ? `Photo ${this.index + 1} of ${this.photos.length}` : "Photo Inspection"}</span>
+              </span>
+            </div>
+            <div class="photo-lightbox-actions">
+              <a href="${e(current)}" target="_blank" rel="noopener noreferrer" class="lightbox-header-btn" title="Open original high-resolution image in new tab">
+                ${icon("external-link")} <span>Original High-Res</span>
+              </a>
+              <button type="button" class="lightbox-close-btn" data-action="close-modal" aria-label="Close photo preview" title="Close (Esc)">
+                ${icon("x")}
+              </button>
+            </div>
+          </div>
+          <div class="photo-lightbox-stage">
+            ${this.photos.length > 1 ? `
+              <button type="button" class="lightbox-arrow-btn prev" data-action="lightbox-prev" aria-label="Previous photo" title="Previous (Left Arrow)">
+                ${icon("arrow-left")}
+              </button>
+            ` : ""}
+            <img src="${e(current)}" alt="Enlarged property photo" class="photo-lightbox-img" />
+            ${this.photos.length > 1 ? `
+              <button type="button" class="lightbox-arrow-btn next" data-action="lightbox-next" aria-label="Next photo" title="Next (Right Arrow)">
+                ${icon("arrow-right")}
+              </button>
+            ` : ""}
+          </div>
+          ${this.photos.length > 1 ? `
+            <div class="photo-lightbox-thumbs">
+              ${this.photos.map((p, i) => `
+                <button type="button" class="photo-lightbox-thumb ${i === this.index ? 'active' : ''}" data-lightbox-jump="${i}" aria-label="Jump to photo ${i + 1}">
+                  <img src="${e(p)}" alt="" loading="lazy" />
+                </button>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+      `, { lightbox: true });
+      refreshIcons();
+    }
+  };
+
+  activeLightboxState.render();
+}
+
+let mediaRecorderInstance = null;
+let audioRecordingChunks = [];
+let voiceTimerTimer = null;
+let voiceRecordingStartMs = 0;
+
+async function startVoiceRecording() {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast("Voice recording is not supported in this browser.");
+      return;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioRecordingChunks = [];
+    
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+
+    mediaRecorderInstance = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+    mediaRecorderInstance.ondataavailable = (evt) => {
+      if (evt.data && evt.data.size > 0) {
+        audioRecordingChunks.push(evt.data);
+      }
+    };
+
+    const voiceBar = $("#chat-voice-bar");
+    const composerRow = $("#chat-composer-row");
+    if (voiceBar && composerRow) {
+      voiceBar.style.display = "flex";
+      composerRow.style.display = "none";
+      voiceRecordingStartMs = Date.now();
+      const timerDisplay = $("#voice-timer-display");
+      if (timerDisplay) timerDisplay.textContent = "0:00";
+      clearInterval(voiceTimerTimer);
+      voiceTimerTimer = setInterval(() => {
+        const elapsedSec = Math.floor((Date.now() - voiceRecordingStartMs) / 1000);
+        const m = Math.floor(elapsedSec / 60);
+        const s = elapsedSec % 60;
+        const td = $("#voice-timer-display");
+        if (td) td.textContent = `${m}:${s < 10 ? "0" : ""}${s}`;
+      }, 1000);
+    }
+
+    mediaRecorderInstance.start(250);
+  } catch (err) {
+    console.error("Microphone recording error:", err);
+    toast("Microphone access is required to record voice audio.");
+  }
+}
+
+function cancelVoiceRecording() {
+  if (voiceTimerTimer) {
+    clearInterval(voiceTimerTimer);
+    voiceTimerTimer = null;
+  }
+  if (mediaRecorderInstance) {
+    mediaRecorderInstance.onstop = null;
+    try {
+      mediaRecorderInstance.stop();
+      mediaRecorderInstance.stream?.getTracks().forEach((t) => t.stop());
+    } catch {}
+    mediaRecorderInstance = null;
+  }
+  audioRecordingChunks = [];
+  const voiceBar = $("#chat-voice-bar");
+  const composerRow = $("#chat-composer-row");
+  if (voiceBar && composerRow) {
+    voiceBar.style.display = "none";
+    composerRow.style.display = "flex";
+  }
+}
+
+function sendVoiceRecording() {
+  if (voiceTimerTimer) {
+    clearInterval(voiceTimerTimer);
+    voiceTimerTimer = null;
+  }
+  if (!mediaRecorderInstance) return;
+
+  const activeRecorder = mediaRecorderInstance;
+  const currentChatId = state.chat?.id;
+  const durationSec = Math.max(1, Math.floor((Date.now() - voiceRecordingStartMs) / 1000));
+  const dm = Math.floor(durationSec / 60);
+  const ds = durationSec % 60;
+  const durationStr = `${dm}:${ds < 10 ? "0" : ""}${ds}`;
+
+  activeRecorder.onstop = async () => {
+    try {
+      activeRecorder.stream?.getTracks().forEach((t) => t.stop());
+      const voiceBar = $("#chat-voice-bar");
+      const composerRow = $("#chat-composer-row");
+      if (voiceBar && composerRow) {
+        voiceBar.style.display = "none";
+        composerRow.style.display = "flex";
+      }
+
+      if (audioRecordingChunks.length > 0 && currentChatId) {
+        toast("Sending voice audio note...");
+        const mimeType = activeRecorder.mimeType || "audio/webm";
+        const blob = new Blob(audioRecordingChunks, { type: mimeType });
+        const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+        const file = new File([blob], `voice_${Date.now()}.${ext}`, { type: mimeType });
+
+        const audioUrl = await api.uploadChatMedia(file);
+        await api.sendMessage(currentChatId, `[audio:${audioUrl}] Voice Note (${durationStr})`);
+      }
+    } catch (err) {
+      toast(err.message || "Failed to send voice note.");
+    } finally {
+      mediaRecorderInstance = null;
+      audioRecordingChunks = [];
+    }
+  };
+
+  try {
+    activeRecorder.stop();
+  } catch {}
 }
 
 function formatAuthError(err) {
@@ -515,7 +742,12 @@ function appLayout(content) {
     ).length || 0;
 
   const isLandlord = api.profile?.role === "landlord";
-  const roleLabel = isLandlord ? "Landlord / Owner" : "Tenant";
+  const isLandlordApplicant = !isLandlord && (state.landlordApp?.status === "submitted" || state.landlordApp?.status === "changes_requested");
+  const roleLabel = isLandlord
+    ? (api.profile?.verified ? "Permit-Approved Landlord" : "Landlord (Permit Pending)")
+    : isLandlordApplicant
+      ? "Landlord Applicant (Under Review)"
+      : "Tenant";
 
   return `
     <div class="app-shell">
@@ -542,6 +774,7 @@ function appLayout(content) {
             </a>
 
             ${navItem("profile", "Profile & Settings", "user")}
+            ${navItem("feedback", "Suggestions & Fixes", "lightbulb")}
             ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
           </div>
 
@@ -552,7 +785,32 @@ function appLayout(content) {
             ${navItem("domi", "Ask DOMI", "bot")}
           </div>
         `
-            : `
+            : isLandlordApplicant
+              ? `
+          <div class="sidebar-nav-group">
+            <div class="sidebar-caption">LANDLORD APPLICANT</div>
+            ${navItem("profile", "Permit Review Status", "badge-check")}
+            <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
+              <div class="sidebar-link-left">
+                ${icon("messages-square")}
+                <span>Inquiries & Chat</span>
+              </div>
+              ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
+            </a>
+            ${navItem("dashboard", "Dashboard", "layout-dashboard")}
+            ${navItem("profile", "Profile & Settings", "user")}
+            ${navItem("feedback", "Suggestions & Fixes", "lightbulb")}
+            ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
+          </div>
+
+          <div class="sidebar-nav-group">
+            <div class="sidebar-caption">FIND HOUSING</div>
+            ${navItem("search", "Explore Rooms", "search")}
+            ${navItem("map", "Map Explorer", "map")}
+            ${navItem("domi", "Ask DOMI", "bot")}
+          </div>
+        `
+              : `
           <div class="sidebar-nav-group">
             <div class="sidebar-caption">TENANT PORTAL</div>
             ${navItem("dashboard", "Dashboard", "layout-dashboard")}
@@ -566,6 +824,7 @@ function appLayout(content) {
             </a>
 
             ${navItem("profile", "Profile & Settings", "user")}
+            ${navItem("feedback", "Suggestions & Fixes", "lightbulb")}
             ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
           </div>
 
@@ -613,7 +872,9 @@ function appLayout(content) {
             <div class="badge badge-outline" style="gap:6px; font-weight:600;">
               ${icon("map-pin")} <span>Tuguegarao & Peñablanca</span>
             </div>
-            <button type="button" class="button outline small" data-action="open-notifications" aria-label="Notifications">${icon("bell")} Alerts</button>
+            <button type="button" class="button outline small" data-action="open-notifications" aria-label="Notifications" style="position:relative; display:inline-flex; align-items:center; gap:6px;">
+              ${icon("bell")} Alerts ${(isLandlord && !api.profile?.verified) ? `<span class="topbar-alert-dot"></span>` : ""}
+            </button>
           </div>
           <div class="app-topbar-right" style="display:flex; align-items:center; gap:8px;">
             <button type="button" class="button text-button" data-action="theme" aria-label="Toggle appearance" title="Toggle Dark/Light Mode">
@@ -1165,11 +1426,11 @@ async function details(id) {
               <div class="move-in-terms-grid">
                 <div class="move-in-term-item">
                   <span class="term-label">Security Deposit</span>
-                  <strong class="term-val">1 Month (Refundable)</strong>
+                  <strong class="term-val">${p.deposit > 0 ? `₱${p.deposit}` : "₱0 (No Deposit Required)"}</strong>
                 </div>
                 <div class="move-in-term-item">
                   <span class="term-label">Advance Payment</span>
-                  <strong class="term-val">1 Month Advance Rent</strong>
+                  <strong class="term-val">${p.advance > 0 ? `₱${p.advance} Advance Rent` : "None Required"}</strong>
                 </div>
                 <div class="move-in-term-item">
                   <span class="term-label">Electricity</span>
@@ -1191,7 +1452,7 @@ async function details(id) {
                 if (norm.includes("wifi") || norm.includes("wi-fi") || norm.includes("internet")) iconName = "wifi";
                 else if (norm.includes("air") || norm.includes("ac") || norm.includes("cooling")) iconName = "wind";
                 else if (norm.includes("kitchen") || norm.includes("cook") || norm.includes("dining")) iconName = "utensils";
-                else if (norm.includes("laundry") || norm.includes("wash")) iconName = "sparkles";
+                else if (norm.includes("laundry") || norm.includes("wash")) iconName = "washing-machine";
                 else if (norm.includes("parking") || norm.includes("garage")) iconName = "car";
                 else if (norm.includes("bath") || norm.includes("cr") || norm.includes("toilet")) iconName = "bath";
                 else if (norm.includes("study") || norm.includes("desk") || norm.includes("table")) iconName = "book-open";
@@ -1799,32 +2060,47 @@ async function messagesPage(id) {
   const selected = convs.find((c) => c.id === id);
   state.chat = selected;
 
+  if (id && selected) {
+    if (!state.manualUnread?.[id]) {
+      api.markRead(id).catch(() => {});
+      if (!selected.readAt) selected.readAt = {};
+      selected.readAt[api.currentUser.uid] = { seconds: Math.floor(Date.now() / 1000) };
+    }
+  }
+
+  const isThreadUnread = selected ? (Boolean(state.manualUnread?.[id]) || (selected.lastSender !== api.currentUser.uid && selected.updatedAt?.seconds > (selected.readAt?.[api.currentUser.uid]?.seconds || 0))) : false;
+
   return `
     <div class="messenger-layout">
       <aside class="conversations-sidebar">
-        <div class="conversations-header">Inbox</div>
-        <div>
+        <div class="conversations-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Inbox</span>
+          <span style="font-size:0.75rem; font-weight:600; color:var(--text-muted);">${convs.length} ${convs.length === 1 ? 'chat' : 'chats'}</span>
+        </div>
+        <div class="conversations-list">
           ${
             convs.length
               ? convs
                   .map((c) => {
                     const isSelected = c.id === id;
-                    const isUnread =
+                    const unread = Boolean(state.manualUnread?.[c.id]) || (
+                      !isSelected &&
                       c.lastSender !== api.currentUser.uid &&
-                      c.updatedAt?.seconds > (c.readAt?.[api.currentUser.uid]?.seconds || 0);
+                      c.updatedAt?.seconds > (c.readAt?.[api.currentUser.uid]?.seconds || 0)
+                    );
                     return `
-              <a href="#/messages/${c.id}" class="conversation-card ${isSelected ? "selected" : ""}">
+              <a href="#/messages/${c.id}" class="conversation-card ${isSelected ? "selected" : ""} ${unread ? "unread" : ""}">
                 <div class="sidebar-avatar">${icon("house")}</div>
                 <div style="flex:1; min-width:0;">
                   <strong style="display:block; font-size:0.875rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     ${e(c.title)}
                   </strong>
-                  <p style="font-size:0.75rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px;">
-                    ${e(c.lastMessage || "Start conversation")}
+                  <p style="font-size:0.75rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; color:${unread ? 'var(--text-main)' : 'var(--text-muted)'}; font-weight:${unread ? '700' : '400'};">
+                    ${e(c.lastMessage?.startsWith('[image:') ? '📷 Photo attachment' : c.lastMessage?.startsWith('[video:') ? '🎥 Video walkthrough' : c.lastMessage?.startsWith('[audio:') ? '🎤 Voice audio note' : (c.lastMessage || "Start conversation"))}
                   </p>
                   <small style="font-size:0.6875rem; color:var(--text-muted);">${date(c.updatedAt)}</small>
                 </div>
-                ${isUnread ? `<span class="sidebar-badge-count">1</span>` : ""}
+                ${unread ? `<span class="sidebar-badge-count">1</span>` : ""}
               </a>
             `;
                   })
@@ -1840,10 +2116,15 @@ async function messagesPage(id) {
             ? `
           <header class="chat-header">
             <div>
-              <strong style="font-size:1.0625rem;">${e(selected.title)}</strong>
-              <div style="font-size:0.75rem; color:var(--text-muted);">Direct encrypted conversation</div>
+              <strong style="font-size:1.0625rem; display:block;">${e(selected.title)}</strong>
+              <div style="font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                <span class="online-indicator"></span> Direct encrypted conversation
+              </div>
             </div>
-            <div style="display:flex; gap:8px; align-items:center;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button type="button" class="button outline small" data-action="toggle-unread" title="Toggle read/unread status" style="display:inline-flex; align-items:center; gap:6px;">
+                ${icon("mail")} <span id="toggle-unread-label">${isThreadUnread ? "Mark as Read" : "Mark as Unread"}</span>
+              </button>
               ${selected.tenantId === api.currentUser.uid ? button("Request viewing", "viewing", "button outline small") : ""}
               ${selected.tenantId === api.currentUser.uid ? `<button class="button outline small" style="color:var(--danger); border-color:rgba(239,68,68,0.3);" data-report="${e(selected.propertyId)}" title="Report landlord if they are disrespectful or not nice">${icon("flag")} Report Landlord</button>` : ""}
               <button class="button text-button small" data-action="block">Block</button>
@@ -1853,19 +2134,53 @@ async function messagesPage(id) {
           <div id="messages" class="chat-messages-area">
             <div style="display:flex; justify-content:center; padding:24px 0;">${domiLoaderHtml("compact")}</div>
           </div>
-          <form id="message-form" class="chat-input-row">
-            <textarea id="message-text" name="text" required placeholder="Type a message..." style="min-height:48px; height:48px; padding:10px 14px;"></textarea>
-            <button class="button primary" style="height:48px; padding:0 20px;">
-              ${icon("send")}
-            </button>
+
+          <!-- Attachment Preview Bar -->
+          <div id="chat-attachment-bar" class="chat-attachment-bar" style="display:none;"></div>
+
+          <!-- Voice Recording Bar -->
+          <div id="chat-voice-bar" class="chat-voice-bar" style="display:none;">
+            <div class="voice-rec-indicator">
+              <span class="rec-dot-pulse"></span>
+              <span style="font-weight:700; color:var(--danger); font-size:0.8125rem;">REC</span>
+              <span id="voice-timer-display" style="font-family:monospace; font-weight:700; font-size:0.875rem;">0:00</span>
+            </div>
+            <div class="voice-soundwaves">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button type="button" id="btn-cancel-voice" class="button text-button small" style="color:var(--danger);">
+                ${icon("trash-2")} Cancel
+              </button>
+              <button type="button" id="btn-send-voice" class="button primary small" style="gap:6px;">
+                ${icon("send")} Send Audio
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat Input Row -->
+          <form id="message-form" class="chat-composer-box">
+            <input type="file" id="chat-file-input" accept="image/*,video/*" style="display:none;" />
+            <div id="chat-composer-row" class="chat-input-row">
+              <button type="button" id="btn-chat-attach" class="button outline chat-tool-btn" title="Upload photo or video walkthrough" aria-label="Attach picture or video">
+                ${icon("paperclip")}
+              </button>
+              <button type="button" id="btn-chat-mic" class="button outline chat-tool-btn" title="Record voice audio note" aria-label="Record voice message">
+                ${icon("mic")}
+              </button>
+              <textarea id="message-text" name="text" placeholder="Type a message..." rows="1" class="chat-textarea" style="resize:none !important; min-height:46px; max-height:130px; height:46px; padding:12px 14px; line-height:1.4; border-radius:var(--radius-lg); flex:1;"></textarea>
+              <button type="submit" id="btn-chat-send" class="button primary chat-send-btn" style="height:46px; min-width:46px; border-radius:var(--radius-lg); padding:0 16px;" title="Send message" aria-label="Send">
+                ${icon("send")}
+              </button>
+            </div>
           </form>
         `
             : `
           <div style="display:grid; place-items:center; height:100%; text-align:center; color:var(--text-muted);">
             <div>
-              <div style="font-size:2rem; margin-bottom:12px;">💬</div>
-              <strong>Select a conversation</strong>
-              <p>Choose an inbox thread on the left, or visit a listing to message an owner.</p>
+              <div style="font-size:2.5rem; margin-bottom:12px;">💬</div>
+              <strong style="font-size:1.125rem; color:var(--text-main); display:block; margin-bottom:6px;">Select a conversation</strong>
+              <p style="font-size:0.875rem; margin:0;">Choose an inbox thread on the left, or visit a listing to message an owner.</p>
             </div>
           </div>
         `
@@ -1873,6 +2188,60 @@ async function messagesPage(id) {
       </section>
     </div>
   `;
+}
+
+function formatChatMessageContent(rawText) {
+  if (!rawText) return "";
+
+  // Check for [image:URL] caption
+  const imgMatch = rawText.match(/^\[image:(https?:\/\/[^\]]+)\]\s*([\s\S]*)$/i);
+  if (imgMatch) {
+    const url = imgMatch[1];
+    const caption = imgMatch[2].trim();
+    return `
+      <div class="chat-media-wrap" data-preview-photo="${e(url)}" title="Click to enlarge">
+        <img src="${e(url)}" alt="Chat photo" class="chat-media-img" loading="lazy" />
+        <div class="chat-media-overlay">${icon("camera")} Click to enlarge</div>
+      </div>
+      ${caption ? `<p class="chat-bubble-caption">${e(caption)}</p>` : ""}
+    `;
+  }
+
+  // Check for [video:URL] caption
+  const vidMatch = rawText.match(/^\[video:(https?:\/\/[^\]]+)\]\s*([\s\S]*)$/i);
+  if (vidMatch) {
+    const url = vidMatch[1];
+    const caption = vidMatch[2].trim();
+    return `
+      <div class="chat-video-wrap">
+        <video src="${e(url)}" controls preload="metadata" playsinline class="chat-bubble-video"></video>
+      </div>
+      ${caption ? `<p class="chat-bubble-caption">${e(caption)}</p>` : ""}
+    `;
+  }
+
+  // Check for [audio:URL] caption
+  const audMatch = rawText.match(/^\[audio:(https?:\/\/[^\]]+)\]\s*([\s\S]*)$/i);
+  if (audMatch) {
+    const url = audMatch[1];
+    const caption = audMatch[2].trim();
+    return `
+      <div class="chat-audio-wrap">
+        <audio src="${e(url)}" preload="metadata" class="chat-native-audio"></audio>
+        <button type="button" class="chat-audio-btn" data-action="toggle-audio" aria-label="Play voice recording">
+          ${icon("play")}
+        </button>
+        <div class="chat-audio-meta">
+          <div class="chat-audio-bars">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <span style="font-size:0.75rem; font-weight:600; opacity:0.9;">${e(caption || "Voice Note")}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  return `<p style="margin:0; word-break:break-word; white-space:pre-wrap;">${e(rawText)}</p>`;
 }
 
 function renderMessages(items) {
@@ -1884,7 +2253,7 @@ function renderMessages(items) {
       .map(
         (m) => `
       <div class="message-bubble ${m.senderId === api.currentUser.uid ? "mine" : "other"}">
-        <p>${e(m.text)}</p>
+        ${formatChatMessageContent(m.text)}
         <div class="message-time" style="font-size:0.6875rem; opacity:0.85; margin-top:4px; text-align:right;">
           ${date(m.createdAt)}
         </div>
@@ -1893,6 +2262,7 @@ function renderMessages(items) {
       )
       .join("") || `<p class="text-muted" style="text-align:center;">No messages yet. Say hello!</p>`;
   box.scrollTop = box.scrollHeight;
+  refreshIcons();
 }
 
 // Redesigned Favorites Page
@@ -2023,8 +2393,9 @@ async function profilePage() {
 
           <div style="margin:20px 0 16px; padding:12px 16px; background:var(--bg-subtle); border-radius:var(--radius-md); font-size:0.875rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <div>
-              Platform Role: <strong>${isLandlord ? "Landlord / Owner" : "Tenant"}</strong>
+              Platform Role: <strong>${isLandlord ? (api.profile?.verified ? "Verified Landlord / Owner" : "Landlord (Permit Pending)") : (landlordApplication?.status === "submitted" || landlordApplication?.status === "changes_requested") ? "Landlord Applicant (Permit Review in Progress)" : "Tenant"}</strong>
               ${api.profile?.verified ? ` · <span class="admin-badge badge-verified">${icon("shield-check")} Verified Landlord</span>` : ""}
+              ${!api.profile?.verified && landlordApplication?.status === "submitted" ? ` · <span class="admin-badge badge-unverified">${icon("clock")} Application Submitted</span>` : ""}
               ${api.isAdmin ? ` · <span class="admin-badge badge-you">${icon("shield-check")} Administrator</span>` : ""}
             </div>
           </div>
@@ -2119,7 +2490,7 @@ async function profilePage() {
         ${
           landlordApplication
             ? `<div class="badge ${landlordApplication.status === "approved" ? "badge-success" : "badge-outline"}" style="margin-bottom:14px;">Status: ${e(String(landlordApplication.status || "submitted").replaceAll("_", " "))}</div>
-               ${landlordApplication.missingItems?.length ? `<div class="notice warning" style="margin-bottom:14px;"><strong>Missing or invalid:</strong> ${landlordApplication.missingItems.map((item) => e(item.replaceAll(/([A-Z])/g, " $1"))).join(", ")}. ${e(landlordApplication.reviewNotes || "Update the fields below and resubmit.")}</div>` : ""}`
+               ${landlordApplication.missingItems?.length ? `<div class="notice warning" style="margin-bottom:14px; border-radius:var(--radius-md); padding:12px 14px; background:#fffbeb; border:1px solid #fde68a; color:#92400e;"><strong>Action Required:</strong> Missing ${landlordApplication.missingItems.map(formatMissingItem).join(", ")}. ${e(landlordApplication.reviewNotes || "Please upload the requested scan below and resubmit.")}</div>` : ""}`
             : ""
         }
         <form id="landlord-application-form">
@@ -2253,6 +2624,24 @@ async function profilePage() {
         </div>
       </div>
 
+      <!-- Suggestions & Problem Reports -->
+      <div class="profile-card" style="border-left: 4px solid var(--brand-primary);">
+        <div class="profile-section-heading">
+          ${icon("lightbulb")} Suggestions & Problem Reports
+        </div>
+        <p style="color:var(--text-secondary); font-size:0.875rem; margin-bottom:14px;">
+          Both tenants and landlords can tell us what features to add and what issues to fix so we can improve DormPath for you.
+        </p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="button primary small" data-action="open-feedback-modal">
+            ${icon("message-square-plus")} Tell Us What to Fix or Add
+          </button>
+          <a href="#/feedback" class="button outline small">
+            ${icon("file-text")} View Feedback Center
+          </a>
+        </div>
+      </div>
+
       <!-- Account & Session Management -->
       <div class="profile-card">
         <div class="profile-section-heading" style="color:var(--danger);">
@@ -2274,6 +2663,189 @@ async function profilePage() {
             ${icon("log-out")} Log Out
           </button>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+// Community Suggestions & Problem Reporting System
+async function openFeedbackModal(defaultType = "suggestion") {
+  if (!api.currentUser) {
+    location.hash = "/login";
+    return;
+  }
+  let mySubmissions = [];
+  try {
+    mySubmissions = await api.getMyFeedback();
+  } catch (err) {
+    console.warn("Could not load feedback history:", err);
+  }
+
+  modal(`
+    <div style="max-width:540px; padding:4px 0;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <div style="width:44px; height:44px; border-radius:12px; background:rgba(37,99,235,0.1); color:var(--brand-primary); display:flex; align-items:center; justify-content:center; font-size:1.25rem;">
+          ${icon("lightbulb")}
+        </div>
+        <div>
+          <h3 style="margin:0; font-size:1.15rem; font-weight:700;">Suggestions & Problem Reports</h3>
+          <p style="margin:2px 0 0; font-size:0.8125rem; color:var(--text-secondary);">
+            Tell us what to add or what to fix so we can improve DormPath for you.
+          </p>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border-light); padding-bottom:10px;">
+        <button type="button" class="button small" id="fb-tab-new" onclick="document.getElementById('fb-panel-new').style.display='block'; document.getElementById('fb-panel-history').style.display='none'; this.className='button small'; document.getElementById('fb-tab-hist').className='button outline small';">
+          ${icon("message-square-plus")} Submit New
+        </button>
+        <button type="button" class="button outline small" id="fb-tab-hist" onclick="document.getElementById('fb-panel-new').style.display='none'; document.getElementById('fb-panel-history').style.display='block'; this.className='button small'; document.getElementById('fb-tab-new').className='button outline small';">
+          ${icon("file-text")} My Submissions (${mySubmissions.length})
+        </button>
+      </div>
+
+      <div id="fb-panel-new">
+        <form id="feedback-form">
+          <div style="margin-bottom:14px;">
+            <label style="display:block; font-size:0.8125rem; font-weight:600; margin-bottom:8px;">Category</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <label style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid var(--border); border-radius:var(--radius-md); cursor:pointer; background:var(--bg-subtle);">
+                <input type="radio" name="type" value="suggestion" ${defaultType === "suggestion" ? "checked" : ""}>
+                <span>💡 What to Add</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid var(--border); border-radius:var(--radius-md); cursor:pointer; background:var(--bg-subtle);">
+                <input type="radio" name="type" value="bug" ${defaultType === "bug" ? "checked" : ""}>
+                <span>🐛 What to Fix</span>
+              </label>
+            </div>
+          </div>
+
+          <label style="display:block; margin-bottom:12px;">Title / Summary
+            <input name="title" required maxlength="120" placeholder="e.g. Add laundry room filter, or Map pin direction glitch" style="margin-top:6px;">
+          </label>
+
+          <label style="display:block; margin-bottom:16px;">Details & Explanation
+            <textarea name="description" rows="4" required maxlength="2000" placeholder="Please describe what needs fixing or what feature we should add in detail..." style="margin-top:6px;"></textarea>
+          </label>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:0.75rem; color:var(--text-muted);">Submitting as: <strong>${e(api.profile?.name || "User")}</strong> (${e(api.profile?.role || "user")})</span>
+            <button type="submit" class="button primary">
+              ${icon("send")} Submit
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="fb-panel-history" style="display:none; max-height:360px; overflow-y:auto;">
+        ${
+          mySubmissions.length
+            ? mySubmissions.map(item => `
+              <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px; margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span class="admin-badge ${item.type === "bug" ? "badge-bug" : "badge-suggestion"}">${item.type === "bug" ? "🐛 What to Fix" : "💡 What to Add"}</span>
+                  <span class="admin-badge ${item.status === "resolved" ? "badge-active" : item.status === "planned" ? "badge-verified" : "badge-unverified"}">${item.status}</span>
+                </div>
+                <strong style="font-size:0.875rem; display:block; margin-bottom:4px;">${e(item.title)}</strong>
+                <p style="font-size:0.8125rem; color:var(--text-secondary); margin:0 0 6px; line-height:1.4;">${e(item.description)}</p>
+                ${item.adminNotes ? `<div style="background:rgba(37,99,235,0.08); padding:6px 10px; border-radius:4px; font-size:0.75rem; color:var(--brand-primary); margin-top:4px;"><strong>Admin Note:</strong> ${e(item.adminNotes)}</div>` : ""}
+              </div>
+            `).join("")
+            : `<p class="text-muted" style="text-align:center; padding:20px 0;">You haven't submitted any suggestions or bug reports yet.</p>`
+        }
+      </div>
+    </div>
+  `);
+}
+
+async function feedbackPage() {
+  if (!api.currentUser) {
+    location.hash = "/login";
+    return "";
+  }
+  let mySubmissions = [];
+  try {
+    mySubmissions = await api.getMyFeedback();
+  } catch (err) {
+    console.warn("Could not load feedback history:", err);
+  }
+
+  return `
+    <div class="profile-shell">
+      <div style="margin-bottom:24px;">
+        <div class="overline">COMMUNITY FEEDBACK & BUG REPORTING</div>
+        <h2>${icon("lightbulb")} Tell Us What to Fix & Add</h2>
+        <p style="color:var(--text-secondary); margin-top:4px;">
+          Both tenants and landlords can share feature suggestions and report glitches directly to the platform developer.
+        </p>
+      </div>
+
+      <div class="profile-card" style="margin-bottom:24px;">
+        <div class="profile-section-heading">
+          ${icon("message-square-plus")} Submit Suggestion or Problem
+        </div>
+        <form id="feedback-form">
+          <div style="margin-bottom:16px;">
+            <label style="display:block; font-size:0.8125rem; font-weight:600; margin-bottom:8px;">Category</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <label style="display:flex; align-items:center; gap:8px; padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); cursor:pointer; background:var(--bg-subtle);">
+                <input type="radio" name="type" value="suggestion" checked>
+                <div>
+                  <strong style="display:block; font-size:0.875rem;">💡 What to Add (Suggestion)</strong>
+                  <span style="font-size:0.75rem; color:var(--text-muted);">Request new features, room options, or amenities</span>
+                </div>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); cursor:pointer; background:var(--bg-subtle);">
+                <input type="radio" name="type" value="bug">
+                <div>
+                  <strong style="display:block; font-size:0.875rem;">🐛 What to Fix (Problem / Bug)</strong>
+                  <span style="font-size:0.75rem; color:var(--text-muted);">Report a glitch, broken button, or error</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <label style="display:block; margin-bottom:14px;">Title / Summary
+            <input name="title" required maxlength="120" placeholder="e.g. Add laundry room filter, or Map pin direction glitch" style="margin-top:6px;">
+          </label>
+
+          <label style="display:block; margin-bottom:18px;">Detailed Description
+            <textarea name="description" rows="5" required maxlength="2000" placeholder="Tell us exactly what problem happened, what screen it was on, or what idea you would like added to DormPath..." style="margin-top:6px;"></textarea>
+          </label>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <span style="font-size:0.8125rem; color:var(--text-muted);">Submitting as: <strong>${e(api.profile?.name || "User")}</strong> (${e(api.profile?.role || "user")})</span>
+            <button type="submit" class="button primary">
+              ${icon("send")} Submit to Developer
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="profile-card">
+        <div class="profile-section-heading">
+          ${icon("file-text")} My Previous Submissions (${mySubmissions.length})
+        </div>
+        ${
+          mySubmissions.length
+            ? `<div style="display:flex; flex-direction:column; gap:12px; margin-top:14px;">
+                ${mySubmissions.map(item => `
+                  <div class="feedback-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="admin-badge ${item.type === "bug" ? "badge-bug" : "badge-suggestion"}">${item.type === "bug" ? "🐛 What to Fix" : "💡 What to Add"}</span>
+                        <span class="admin-badge ${item.status === "resolved" ? "badge-active" : item.status === "planned" ? "badge-verified" : "badge-unverified"}">${item.status}</span>
+                      </div>
+                      <span style="font-size:0.75rem; color:var(--text-muted);">${date(item.createdAt)}</span>
+                    </div>
+                    <h3 style="margin:4px 0; font-size:1rem; font-weight:700;">${e(item.title)}</h3>
+                    <p style="margin:0; font-size:0.875rem; color:var(--text-secondary); line-height:1.5; white-space:pre-wrap;">${e(item.description)}</p>
+                    ${item.adminNotes ? `<div style="background:var(--bg-subtle); border-left:3px solid var(--brand-primary); padding:10px 14px; border-radius:4px; font-size:0.8125rem; margin-top:4px;"><strong>Developer Response:</strong> ${e(item.adminNotes)}</div>` : ""}
+                  </div>
+                `).join("")}
+              </div>`
+            : `<p class="text-muted" style="margin-top:10px;">You haven't submitted any suggestions or bug reports yet. Your feedback helps make DormPath better!</p>`
+        }
       </div>
     </div>
   `;
@@ -2424,17 +2996,37 @@ function propertyForm(p = {}) {
           <div class="property-section-title">
             ${icon("wallet")} Pricing & Move-in Terms
           </div>
+          <p style="font-size:0.8125rem; color:var(--text-secondary); margin:-4px 0 16px;">
+            Set your transparent student rental rate. Security deposit has been removed to keep student boarding accessible.
+          </p>
 
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:16px;">
-            <label>Starting Monthly Rent (₱)
-              <input name="minPrice" type="number" min="0" max="1000000" required value="${p.minPrice ?? ""}" placeholder="e.g. 2500">
+          <input type="hidden" name="deposit" value="0">
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px;">
+            <label style="display:flex; flex-direction:column; gap:6px;">
+              <span style="font-weight:700; font-size:0.875rem;">Starting Monthly Rent (₱)</span>
+              <div style="position:relative; display:flex; align-items:center;">
+                <span style="position:absolute; left:14px; font-weight:700; color:var(--text-muted); pointer-events:none;">₱</span>
+                <input name="minPrice" type="number" min="0" max="1000000" required value="${p.minPrice ?? ""}" placeholder="2500" style="padding-left:32px;">
+              </div>
+              <small style="font-size:0.75rem; color:var(--text-muted);">Lowest monthly rate among rooms in this property</small>
             </label>
-            <label>Security Deposit (₱)
-              <input name="deposit" type="number" min="0" max="1000000" required value="${p.deposit ?? 0}" placeholder="e.g. 2500">
+
+            <label style="display:flex; flex-direction:column; gap:6px;">
+              <span style="font-weight:700; font-size:0.875rem;">Advance Payment (₱)</span>
+              <div style="position:relative; display:flex; align-items:center;">
+                <span style="position:absolute; left:14px; font-weight:700; color:var(--text-muted); pointer-events:none;">₱</span>
+                <input name="advance" type="number" min="0" max="1000000" required value="${p.advance ?? 0}" placeholder="0" style="padding-left:32px;">
+              </div>
+              <small style="font-size:0.75rem; color:var(--text-muted);">Optional 1-month advance rent (set 0 if none required)</small>
             </label>
-            <label>Advance Payment (₱)
-              <input name="advance" type="number" min="0" max="1000000" required value="${p.advance ?? 0}" placeholder="e.g. 2500">
-            </label>
+          </div>
+
+          <div class="notice" style="margin:16px 0 0; padding:12px 16px; border-radius:10px; font-size:0.8125rem; display:flex; align-items:center; gap:10px;">
+            <span style="font-size:1.125rem;">✨</span>
+            <div>
+              <strong>₱0 Security Deposit:</strong> Students won't be charged large upfront deposits, making your property more attractive and boosting your inquiry rate!
+            </div>
           </div>
         </div>
 
@@ -2632,9 +3224,26 @@ function roomDialog(r = {}) {
 // Redesigned Admin Console
 async function adminPage(tab = "users") {
   if (!api.isAdmin) return empty("Admin Access Required", "This area is restricted to platform administrators.");
-  const allowed = ["users", "landlordApplications", "properties", "reports", "auditLogs"];
+  const allowed = ["users", "landlordApplications", "properties", "reports", "feedback", "auditLogs"];
   if (!allowed.includes(tab)) tab = "users";
-  const data = await api.adminList(tab);
+  let data = [];
+  try {
+    data = await api.adminList(tab);
+  } catch (err) {
+    console.warn(`[DormPath Admin] Could not load ${tab}:`, err);
+    if (tab === "feedback") {
+      return empty(
+        "Suggestions & Fixes Center",
+        "Administrator moderation for all community feedback requires elevated admin permissions. Tenants, students, and landlords can share ideas, report glitches, and view their submission status in the Suggestions & Fixes center.",
+        `<a href="#/feedback" class="button primary">${icon("lightbulb")} Open Suggestions & Fixes</a>`
+      );
+    }
+    return empty(
+      "Administrator Access Required",
+      "Your current account does not have sufficient Firestore administrative privileges for this section.",
+      `<a href="#/dashboard" class="button primary">Return to Dashboard</a>`
+    );
+  }
 
   return `
     <div class="admin-shell">
@@ -2710,6 +3319,10 @@ async function adminPage(tab = "users") {
           ${icon("flag")} Safety Reports
           <span class="admin-tab-count">${tab === "reports" ? data.length : "•"}</span>
         </a>
+        <a href="#/admin/feedback" class="admin-tab-link ${tab === "feedback" ? "active" : ""}">
+          ${icon("lightbulb")} Suggestions & Fixes
+          <span class="admin-tab-count">${tab === "feedback" ? data.length : "•"}</span>
+        </a>
         <a href="#/admin/auditLogs" class="admin-tab-link ${tab === "auditLogs" ? "active" : ""}">
           ${icon("file-text")} Audit Trail
           <span class="admin-tab-count">${tab === "auditLogs" ? data.length : "•"}</span>
@@ -2778,6 +3391,15 @@ async function adminPage(tab = "users") {
                   </div>
 
                   <div class="admin-actions-group">
+                    ${
+                      isLandlord
+                        ? `<button type="button" class="button outline small" data-set-role="${r.id}:tenant" title="Switch role to Tenant">
+                            ${icon("user")} Set Tenant
+                           </button>`
+                        : `<button type="button" class="button outline small btn-verify-success" data-set-role="${r.id}:landlord" title="Promote role to Landlord">
+                            ${icon("building-2")} Set Landlord
+                           </button>`
+                    }
                     ${
                       isLandlord && r.verified
                         ? `<button class="button outline small" style="color:var(--text-secondary);" data-verify="${r.id}:false" title="Revoke verified owner badge">
@@ -2904,7 +3526,7 @@ async function adminPage(tab = "users") {
                         </div>
                       </div>
 
-                      ${application.missingItems?.length ? `<div class="notice warning" style="margin-top:12px;">Missing: ${application.missingItems.map((item) => e(item)).join(", ")} ${e(application.reviewNotes || "")}</div>` : ""}
+                      ${application.missingItems?.length ? `<div class="notice warning" style="margin-top:12px; border-radius:var(--radius-md); padding:12px 14px; background:#fffbeb; border:1px solid #fde68a; color:#92400e;"><strong>Requested Missing Document:</strong> ${application.missingItems.map(formatMissingItem).join(", ")}<div style="margin-top:4px; color:#78350f;">${e(application.reviewNotes || "")}</div></div>` : ""}
                       ${application.reviewNotes && application.status === "rejected" ? `<div class="notice danger" style="margin-top:12px; background:rgba(239,68,68,0.08); color:var(--danger); border:1px solid rgba(239,68,68,0.3); padding:10px 14px; border-radius:var(--radius-md);"><strong>Decline Reason:</strong> ${e(application.reviewNotes)}</div>` : ""}
                     </article>`).join("")
                   : `<div class="detail-section"><p class="text-muted">No landlord permit applications submitted.</p></div>`
@@ -3018,6 +3640,62 @@ async function adminPage(tab = "users") {
               `)
                   .join("")
               : `<div class="detail-section"><p class="text-muted">No reports on file. The community is safe!</p></div>`
+          }
+        </div>
+      `
+          : ""
+      }
+
+      <!-- Tab Content: Suggestions & Fixes -->
+      ${
+        tab === "feedback"
+          ? `
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="notice" style="background:var(--bg-subtle); border-radius:var(--radius-md); padding:12px 14px;">
+            Here are all suggestions and problem reports submitted by tenants and landlords. You can review them, mark them planned or resolved, and leave developer notes.
+          </div>
+          ${
+            data.length
+              ? data
+                  .map((item) => {
+                    const isBug = item.type === "bug";
+                    const isResolved = item.status === "resolved" || item.status === "closed";
+                    const isPlanned = item.status === "planned";
+                    const isInReview = item.status === "in_review";
+                    const statusClass = isResolved ? "badge-active" : isPlanned ? "badge-verified" : isInReview ? "badge-landlord" : "badge-unverified";
+                    const statusLabel = isResolved ? "Resolved / Fixed" : isPlanned ? "Planned" : isInReview ? "In Review" : "Open";
+                    const typeLabel = isBug ? "🐛 What to Fix (Problem / Bug)" : "💡 What to Add (Suggestion)";
+                    const typeBadgeClass = isBug ? "badge-bug" : "badge-suggestion";
+
+                    return `
+                <div class="feedback-card" data-feedback-id="${e(item.id)}">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+                        <span class="admin-badge ${typeBadgeClass}">${typeLabel}</span>
+                        <span class="admin-badge ${statusClass}">${statusLabel}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${date(item.createdAt)}</span>
+                      </div>
+                      <h3 style="margin:0 0 6px; font-size:1.0625rem; font-weight:700; color:var(--text-main);">${e(item.title || "No Title")}</h3>
+                    </div>
+                    <div class="admin-actions-group" style="display:flex; gap:6px; flex-wrap:wrap;">
+                      ${item.status !== "in_review" ? `<button type="button" class="button outline small" data-feedback-status="${item.id}:in_review">In Review</button>` : ""}
+                      ${item.status !== "planned" ? `<button type="button" class="button outline small" data-feedback-status="${item.id}:planned">Plan</button>` : ""}
+                      ${item.status !== "resolved" ? `<button type="button" class="button primary small" data-feedback-status="${item.id}:resolved">${icon("check")} Mark Fixed</button>` : ""}
+                      <button type="button" class="button outline small" data-feedback-note="${item.id}" title="Add or edit developer note">Note</button>
+                    </div>
+                  </div>
+                  <p style="font-size:0.875rem; color:var(--text-secondary); line-height:1.5; margin:0; white-space:pre-wrap;">${e(item.description || "")}</p>
+                  ${item.adminNotes ? `<div style="background:var(--bg-subtle); border-left:3px solid var(--brand-primary); padding:8px 12px; border-radius:4px; font-size:0.8125rem; color:var(--text-main); margin-top:4px;"><strong>Developer Response:</strong> ${e(item.adminNotes)}</div>` : ""}
+                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--text-muted); margin-top:4px; padding-top:8px; border-top:1px solid var(--border-light);">
+                    <span>Submitted by: <strong>${e(item.userName || "User")}</strong> (${e(item.userRole || "user")})</span>
+                    <span>${e(item.userEmail || "")}</span>
+                  </div>
+                </div>
+              `;
+                  })
+                  .join("")
+              : `<div class="detail-section"><p class="text-muted">No suggestions or bug reports submitted yet.</p></div>`
           }
         </div>
       `
@@ -3208,7 +3886,7 @@ function domiPage() {
               : ""
           }
           <div class="domi-msg-bubble">
-            <div class="domi-msg-text">${e(m.text)}</div>
+            <div class="domi-msg-text">${!isUser ? formatDomiMessage(m.text) : e(m.text)}</div>
             <span class="domi-msg-time">${e(m.time)}</span>
           </div>
           ${
@@ -3234,24 +3912,17 @@ function domiPage() {
               <h2 style="font-size:1.125rem; font-weight:800; color:var(--text-main); margin:0;">DOMI Housing Assistant</h2>
               <span style="font-size:0.75rem; color:var(--success); font-weight:600; display:flex; align-items:center; gap:4px;">
                 <span style="width:6px; height:6px; border-radius:50%; background:var(--success); display:inline-block;"></span>
-                Room search help, budgets, and message drafts
+                Powered by Groq AI · 24/7 Housing Guide
               </span>
             </div>
           </div>
-          <button class="button outline small" data-action="fullscreen">Full screen</button><button class="button outline small" data-action="clear-domi" title="Reset chat history">
-            ${icon("trash-2")} Reset
-          </button>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="button outline small" data-action="fullscreen">Full screen</button>
+            <button class="button outline small" data-action="clear-domi" title="Reset chat history">
+              ${icon("trash-2")} Reset
+            </button>
+          </div>
         </header>
-
-        <div class="domi-prompt-chips">
-          <button class="domi-chip" data-ask="Find rooms under ₱3,000">💰 Under ₱3,000</button>
-          <button class="domi-chip" data-ask="Dorms near CSU Carig">🎓 Near CSU Carig</button>
-          <button class="domi-chip" data-ask="Boarding houses near USL and SPUP">📍 Near USL / SPUP</button>
-          <button class="domi-chip" data-ask="Places with Wi-Fi and air conditioning">📶 Wi-Fi & AC</button>
-          <button class="domi-chip" data-ask="What are typical deposit and advance rates?">📋 Deposit & Advance</button>
-          <button class="domi-chip" data-ask="Draft a polite inquiry message to a landlord">✉️ Draft Message</button>
-          <button class="domi-chip" data-ask="How to avoid housing scams in Tuguegarao?">🛡️ Anti-Scam Tips</button>
-        </div>
 
         <div id="domi-chat-stream" class="domi-chat-messages">
           ${messagesHtml}
@@ -3276,14 +3947,18 @@ function domiPage() {
   `;
 }
 
-function modal(content) {
+function modal(content, options = {}) {
   const m = $("#modal");
   if (!m) return;
+  const isLightbox = options.lightbox || (typeof content === "string" && content.includes("photo-lightbox-modal"));
+  m.className = isLightbox ? "modal-lightbox-dialog" : "";
   m.innerHTML = `
-    <div class="modal-box">
-      <button class="modal-close-btn" data-action="close-modal" aria-label="Close dialog">
-        ${icon("x")}
-      </button>
+    <div class="modal-box ${isLightbox ? "modal-box-lightbox" : ""}">
+      ${!isLightbox ? `
+        <button class="modal-close-btn" data-action="close-modal" aria-label="Close dialog">
+          ${icon("x")}
+        </button>
+      ` : ""}
       ${content}
     </div>
   `;
@@ -3351,6 +4026,7 @@ async function route() {
     "profile",
     "admin",
     "notifications",
+    "feedback",
   ].includes(page);
 
   // If user is not signed in and tries to access a protected workspace page
@@ -3379,7 +4055,20 @@ async function route() {
     "profile",
     "add-property",
     "edit-property",
+    "feedback",
   ].includes(page) || (page === "map" && api.configured && navigator.onLine);
+
+  if (api.currentUser && !state.landlordApp) {
+    api.getLandlordApplication().then((app) => {
+      if (app && !state.landlordApp) {
+        state.landlordApp = app;
+        const applicantCaption = document.querySelector(".sidebar-caption");
+        if (applicantCaption && applicantCaption.textContent.includes("TENANT") && (app.status === "submitted" || app.status === "changes_requested")) {
+          render();
+        }
+      }
+    }).catch(() => {});
+  }
 
   const existingMain = $("#main");
   if (existingMain && isAsyncRoute) {
@@ -3479,6 +4168,9 @@ async function route() {
         `;
         break;
       }
+      case "feedback":
+        innerHTML = await feedbackPage();
+        break;
       case "about":
         innerHTML = about();
         break;
@@ -3927,6 +4619,105 @@ async function mountMap() {
   });
 }
 
+function formatDomiMessage(text) {
+  if (!text) return "";
+  let s = e(text);
+  // Markdown bold **text**
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  // Markdown links [label](url)
+  s = s.replace(/\[([^\]]+)\]\((#[^\)]+)\)/g, '<a href="$2" class="domi-chat-link">$1</a>');
+  // Standalone hash links e.g. #/search or #/property/xyz
+  s = s.replace(/(^|\s)(#\/[a-zA-Z0-9_\-\/]+)/g, '$1<a href="$2" class="domi-chat-link">$2</a>');
+  // Bullet lines
+  s = s.replace(/^•\s+(.+)$/gm, '<li style="margin-left:14px; margin-bottom:4px;">$1</li>');
+  s = s.replace(/^-\s+(.+)$/gm, '<li style="margin-left:14px; margin-bottom:4px;">$1</li>');
+  // Line breaks
+  s = s.replace(/\n/g, "<br>");
+  return s;
+}
+
+async function askDomiAI(question, history = [], properties = []) {
+  const cleanQ = (question || "").trim();
+  if (!cleanQ) return domiReply(cleanQ, properties);
+
+  if (!navigator.onLine) {
+    return domiReply(cleanQ, properties);
+  }
+
+  // 1. Context from recent history
+  const recentHistory = (history || [])
+    .slice(-6)
+    .filter((h) => h.role === "user" || h.role === "domi" || h.role === "assistant")
+    .map((h) => ({
+      role: h.role === "user" ? "user" : "assistant",
+      content: h.text,
+    }));
+
+  // 2. Format concise properties summary
+  let listingsSummary = "No properties currently loaded.";
+  if (properties && properties.length > 0) {
+    listingsSummary = properties
+      .slice(0, 8)
+      .map(
+        (p) =>
+          `• "${p.title}" in ${p.barangay || "Tuguegarao"}, Price: ₱${p.minPrice || 0}/mo, Vacancy: ${p.available ?? 0} spots, Types: ${(p.roomTypes || []).join(", ")}. Link: #/property/${p.id}`,
+      )
+      .join("\n");
+  }
+
+  const systemPrompt = `You are DOMI, the friendly, intelligent, and helpful AI mascot & housing guide for DormPath in Tuguegarao City & Peñablanca, Cagayan, Philippines.
+
+Core Capabilities:
+1. Student & Dorm Life Assistance: Answer ANY questions asked by students or tenants. Provide budget-friendly dorm recipes (adobo, sinigang, egg dishes, canned tuna, garlic rice, noodles, rice cooker meals), study habits, roommate advice, laundry hacks, curfew tips, deposit/advance explanation.
+2. Tuguegarao City & Universities Knowledge:
+   - St. Paul University Philippines (SPUP): Located on Mabini Street, Ugac Norte
+   - University of Saint Louis (USL): Located on Mabini Street, Ugac Sur
+   - Cagayan State University (CSU) Andrews: Located in Caritan Centro
+   - Cagayan State University (CSU) Carig: Located in Carig Sur (Engineering, Medicine, Tech)
+   - Cagayan Valley Medical Center (CVMC): Located in Carig Sur
+   - Tricycle fares: ₱15 minimum within Centro, student discount with valid school ID.
+3. Live Housing Listings & Recommendations:
+   - When asked for housing or rooms, recommend specific listings from the loaded database below, citing their exact price, location, and a clear descriptive clickable link!
+   - Always format property links with full, clear labels: [View Listing: "Property Title"](#/property/{id}). NEVER append the bare title alone at the end of a sentence (e.g., do NOT write "with 1 spot left: Example."). Always write: "Check out [View Listing: {Title}](#/property/{id}) in {Barangay} (₱{Price}/month with {Vacancy} spots left)."
+   - If user asks for general rooms, always include [Explore All Listings](#/search).
+4. Tone & Style:
+   - Warm, respectful, supportive, concise (under 250 words).
+   - Answer naturally in English, Filipino (Tagalog), or Taglish matching the user's query.
+
+Currently Active DormPath Listings:
+${listingsSummary}`;
+
+  // Server-Side Groq AI Assistant via Netlify Functions
+  try {
+    const netlifyRes = await fetch("/.netlify/functions/domi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...recentHistory,
+          { role: "user", content: cleanQ },
+        ],
+      }),
+      signal: AbortSignal.timeout(16000),
+    });
+
+    if (netlifyRes.ok) {
+      const data = await netlifyRes.json();
+      const reply = data.reply || data.choices?.[0]?.message?.content;
+      if (reply && reply.trim()) return reply.trim();
+    } else {
+      const errData = await netlifyRes.json().catch(() => ({}));
+      console.warn("[DOMI AI] Serverless Groq notice:", errData.error || netlifyRes.statusText);
+    }
+  } catch (err) {
+    console.warn("[DOMI AI] Netlify function connection notice:", err.message);
+  }
+
+  // Graceful offline fallback to local domain intelligence
+  return domiReply(cleanQ, properties);
+}
+
 async function askDomi(text) {
   if (!text?.trim() || state.domiBusy) return;
   if (text.length > 1000) { toast("Keep questions under 1,000 characters."); return; }
@@ -3946,7 +4737,7 @@ async function askDomi(text) {
           <div class="domi-msg ${isUser ? "user" : "domi"}">
             ${!isUser ? `<div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI" /></div>` : ""}
             <div class="domi-msg-bubble">
-              <div class="domi-msg-text">${e(m.text)}</div>
+              <div class="domi-msg-text">${!isUser ? formatDomiMessage(m.text) : e(m.text)}</div>
               <span class="domi-msg-time">${e(m.time)}</span>
             </div>
             ${isUser ? `<div class="domi-msg-avatar user-avatar">${(api.profile?.name || "U")[0].toUpperCase()}</div>` : ""}
@@ -3961,7 +4752,7 @@ async function askDomi(text) {
           <div class="domi-msg-avatar"><img src="/domi.png" alt="DOMI" /></div>
           <div class="domi-msg-bubble" style="display:flex; align-items:center; gap:8px;">
             <span class="domi-thinking-dots"><span></span><span></span><span></span></span>
-            <span style="font-size:0.8125rem; color:var(--text-secondary); font-weight:500;">DOMI is checking the loaded listings...</span>
+            <span style="font-size:0.8125rem; color:var(--text-secondary); font-weight:500;">DOMI AI is preparing an answer...</span>
           </div>
         </div>
       `;
@@ -3972,13 +4763,10 @@ async function askDomi(text) {
 
   renderChat(true);
 
-  // Brief natural thinking delay
-  await new Promise((r) => setTimeout(r, 700));
-
-  const reply = domiReply(q, state.properties);
+  // Call free AI with fallback
+  const reply = await askDomiAI(q, state.domiHistory, state.properties);
   const finishTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   state.domiHistory.push({ role: "domi", text: reply, time: finishTime });
-
 
   renderChat(false);
   state.domiBusy = false;
@@ -4049,7 +4837,7 @@ function openInstallModal() {
    GLOBAL EVENT DELEGATION
    ============================================================================== */
 document.addEventListener("click", async (event) => {
-  const el = event.target.closest("button, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], .domi-chip");
+  const el = event.target.closest("button, a, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], [data-preview-photo], .gallery-count-badge, .gallery-hero-wrapper, .gallery-sub-wrapper, [data-lightbox-jump], .conversation-card, #btn-chat-attach, #btn-chat-mic, #btn-cancel-voice, #btn-send-voice, .chat-media-wrap");
   if (!el) return;
 
   // Install PWA Trigger
@@ -4224,7 +5012,7 @@ document.addEventListener("click", async (event) => {
           <input type="hidden" name="uid" value="${e(uid)}">
           <input type="hidden" name="reviewStatus" value="changes_requested">
           <label>Missing required item
-            <input name="missingItems" required maxlength="300" value="mayorsPermitUrl" readonly style="background:var(--bg-subtle); font-family:monospace; font-size:0.8125rem;">
+            <input name="missingItems" required maxlength="300" value="Mayor's Permit Document" readonly style="background:var(--bg-subtle); font-weight:600; font-size:0.875rem;">
           </label>
           <label style="margin-top:12px;">Instructions for the applicant
             <textarea name="reviewNotes" required maxlength="1000" rows="4">Please log in to your DormPath profile and upload a clear photo or scan of your official Tuguegarao City or Peñablanca Mayor's Permit document so our administrators can inspect and approve your listings.</textarea>
@@ -4241,7 +5029,7 @@ document.addEventListener("click", async (event) => {
           <input type="hidden" name="uid" value="${e(uid)}">
           <input type="hidden" name="reviewStatus" value="changes_requested">
           <label>Missing or mismatched fields (comma-separated)
-            <input name="missingItems" required maxlength="300" placeholder="mayorsPermitUrl, businessPermitNumber, fireSafetyExpires">
+            <input name="missingItems" required maxlength="300" placeholder="Mayor's Permit Document, Business Permit Number, Fire Safety Expiration">
           </label>
           <label>Instructions for the landlord
             <textarea name="reviewNotes" required maxlength="1000" rows="4" placeholder="Explain exactly what must be corrected."></textarea>
@@ -4313,6 +5101,48 @@ document.addEventListener("click", async (event) => {
       route();
     } catch (err) {
       toast(err.message);
+    }
+    return;
+  }
+
+  // Admin Set User Role
+  if (el.dataset.setRole) {
+    const [uid, newRole] = el.dataset.setRole.split(":");
+    try {
+      await api.setUserRole(uid, newRole);
+      toast(`User role updated to ${newRole === "landlord" ? "Landlord / Owner" : "Tenant"}!`);
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Admin Feedback Status
+  if (el.dataset.feedbackStatus) {
+    const [id, st] = el.dataset.feedbackStatus.split(":");
+    try {
+      await api.updateFeedbackStatus(id, st);
+      toast(`Status updated to ${st.replace("_", " ")}.`);
+      route();
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Admin Feedback Note Prompt
+  if (el.dataset.feedbackNote) {
+    const id = el.dataset.feedbackNote;
+    const note = prompt("Enter developer note or update for user:");
+    if (note !== null) {
+      try {
+        await api.updateFeedbackStatus(id, "in_review", note);
+        toast("Developer note saved!");
+        route();
+      } catch (err) {
+        toast(err.message);
+      }
     }
     return;
   }
@@ -4436,22 +5266,151 @@ document.addEventListener("click", async (event) => {
   }
 
   // Full-size Photo Preview Lightbox
-  if (el.dataset.previewPhoto) {
-    const url = el.dataset.previewPhoto;
-    modal(`
-      <div style="text-align:center; padding:4px 0;">
-        <img src="${e(url)}" alt="Full resolution view" style="max-width:100%; max-height:80vh; object-fit:contain; border-radius:var(--radius-md); box-shadow:var(--shadow-xl); background:#0f172a; margin:0 auto; display:block;" />
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; flex-wrap:wrap; gap:10px;">
-          <a href="${e(url)}" target="_blank" rel="noopener noreferrer" class="button outline small" style="display:inline-flex; align-items:center; gap:6px;">
-            ${icon("external-link")} Open Original Image
-          </a>
-          <button type="button" class="button primary small" onclick="this.closest('dialog').close();">
-            Close Preview
-          </button>
-        </div>
-      </div>
-    `);
-    refreshIcons();
+  const previewBox = el.closest("[data-preview-photo], .gallery-hero-wrapper, .gallery-sub-wrapper, .gallery-count-badge, .chat-media-wrap");
+  if (previewBox) {
+    let url = previewBox.dataset?.previewPhoto;
+    let allPhotos = [];
+    if (state.currentProperty?.photos?.length) {
+      allPhotos = state.currentProperty.photos;
+      if (!url) url = allPhotos[0];
+    } else if (!url) {
+      const img = previewBox.querySelector("img");
+      if (img) url = img.src;
+    }
+    if (url) {
+      openPhotoLightbox(url, allPhotos);
+      return;
+    }
+  }
+
+  // Lightbox arrow navigation
+  if (el.dataset.action === "lightbox-prev") {
+    activeLightboxState?.prev();
+    return;
+  }
+  if (el.dataset.action === "lightbox-next") {
+    activeLightboxState?.next();
+    return;
+  }
+  const jumpThumb = el.closest("[data-lightbox-jump]");
+  if (jumpThumb) {
+    activeLightboxState?.set(Number(jumpThumb.dataset.lightboxJump));
+    return;
+  }
+
+  // Audio Playback in Chat
+  const audioBtn = el.closest('[data-action="toggle-audio"]');
+  if (audioBtn) {
+    const card = audioBtn.closest(".chat-audio-wrap");
+    const audio = card?.querySelector("audio");
+    if (audio) {
+      if (audio.paused) {
+        document.querySelectorAll(".chat-native-audio").forEach((a) => {
+          if (a !== audio) {
+            a.pause();
+            a.closest(".chat-audio-wrap")?.classList.remove("playing");
+            const otherBtn = a.closest(".chat-audio-wrap")?.querySelector(".chat-audio-btn");
+            if (otherBtn) otherBtn.innerHTML = icon("play");
+          }
+        });
+        audio.play().catch(() => {});
+        card.classList.add("playing");
+        audioBtn.innerHTML = icon("pause");
+        audio.onended = () => {
+          card.classList.remove("playing");
+          audioBtn.innerHTML = icon("play");
+          refreshIcons();
+        };
+      } else {
+        audio.pause();
+        card.classList.remove("playing");
+        audioBtn.innerHTML = icon("play");
+      }
+      refreshIcons();
+    }
+    return;
+  }
+
+  // Toggle Read / Unread Status
+  if (el.dataset.action === "toggle-unread") {
+    const cid = state.chat?.id;
+    if (!cid) return;
+    if (!state.manualUnread) state.manualUnread = {};
+    const isUnread = Boolean(state.manualUnread[cid]);
+    if (isUnread) {
+      delete state.manualUnread[cid];
+      api.markRead(cid).catch(() => {});
+      toast("Conversation marked as read.");
+      const badge = document.querySelector(`.conversation-card[href="#/messages/${cid}"] .sidebar-badge-count`);
+      if (badge) badge.remove();
+      const lbl = $("#toggle-unread-label");
+      if (lbl) lbl.textContent = "Mark as Unread";
+    } else {
+      state.manualUnread[cid] = true;
+      toast("Conversation marked as unread.");
+      const card = document.querySelector(`.conversation-card[href="#/messages/${cid}"]`);
+      if (card && !card.querySelector(".sidebar-badge-count")) {
+        const badge = document.createElement("span");
+        badge.className = "sidebar-badge-count";
+        badge.textContent = "1";
+        card.appendChild(badge);
+      }
+      const lbl = $("#toggle-unread-label");
+      if (lbl) lbl.textContent = "Mark as Read";
+    }
+    return;
+  }
+
+  // Clicking an inbox thread card marks read
+  const convCard = el.closest(".conversation-card");
+  if (convCard) {
+    const href = convCard.getAttribute("href") || "";
+    const m = href.match(/#\/messages\/(.+)/);
+    if (m && m[1]) {
+      const clickedId = m[1];
+      if (state.manualUnread?.[clickedId]) {
+        delete state.manualUnread[clickedId];
+      }
+      api.markRead(clickedId).catch(() => {});
+      const badge = convCard.querySelector(".sidebar-badge-count");
+      if (badge) badge.remove();
+    }
+  }
+
+  // Chat attachment file trigger
+  if (el.closest("#btn-chat-attach")) {
+    $("#chat-file-input")?.click();
+    return;
+  }
+
+  // Chat voice recording trigger
+  if (el.closest("#btn-chat-mic")) {
+    startVoiceRecording();
+    return;
+  }
+
+  // Cancel voice recording
+  if (el.closest("#btn-cancel-voice")) {
+    cancelVoiceRecording();
+    return;
+  }
+
+  // Send voice recording
+  if (el.closest("#btn-send-voice")) {
+    sendVoiceRecording();
+    return;
+  }
+
+  // Remove selected chat attachment
+  if (el.closest('[data-action="remove-chat-attachment"]')) {
+    state.selectedChatFile = null;
+    const bar = $("#chat-attachment-bar");
+    if (bar) {
+      bar.style.display = "none";
+      bar.innerHTML = "";
+    }
+    const fileInp = $("#chat-file-input");
+    if (fileInp) fileInp.value = "";
     return;
   }
 
@@ -4553,6 +5512,9 @@ document.addEventListener("click", async (event) => {
         stopGlobalLoading();
       }
       break;
+    case "open-feedback-modal":
+      openFeedbackModal();
+      break;
     case "open-notifications": {
       modal(`
         <div class="notifications-popup-modal">
@@ -4576,17 +5538,23 @@ document.addEventListener("click", async (event) => {
               <p style="font-size:0.8125rem; margin-top:4px;">No new alerts or room inquiry notifications right now.</p>
             </div>
           `;
-        } else {
           container.innerHTML = `
             <div class="notifications-list">
               ${items
                 .map(
                   (n) => `
-                <div class="notification-item-card">
-                  <div class="notification-icon-box">${icon("bell")}</div>
-                  <div class="notification-content">
-                    <div class="notification-title">${e(n.title || n.message || "Notification")}</div>
-                    <div class="notification-time">${date(n.createdAt)}</div>
+                <div class="notification-item-card ${n.type === 'action_required' || n.status === 'changes_requested' ? 'urgent-notification' : ''}">
+                  <div class="notification-icon-box ${n.type === 'action_required' || n.status === 'changes_requested' ? 'urgent' : ''}">
+                    ${icon(n.type === 'action_required' || n.status === 'changes_requested' ? "alert-circle" : "bell")}
+                  </div>
+                  <div class="notification-content" style="flex:1;">
+                    <div class="notification-title" style="font-weight:700;">${e(n.title || n.message || "Notification")}</div>
+                    ${n.body ? `<div class="notification-body" style="font-size:0.8125rem; color:var(--text-secondary); margin:4px 0 6px; line-height:1.4;">${e(n.body)}</div>` : ""}
+                    ${n.missingItems?.length ? `<div style="font-size:0.75rem; color:#b45309; background:#fef3c7; padding:4px 8px; border-radius:4px; margin-bottom:8px; display:inline-block;"><strong>Required:</strong> ${n.missingItems.map(formatMissingItem).join(", ")}</div>` : ""}
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                      <div class="notification-time" style="font-size:0.6875rem; color:var(--text-muted);">${date(n.createdAt)}</div>
+                      ${n.link ? `<a href="${e(n.link)}" class="button primary small" onclick="$('#modal')?.close();" style="padding:4px 10px; font-size:0.75rem; font-weight:700;">Go to Profile & Upload</a>` : ""}
+                    </div>
                   </div>
                 </div>
               `,
@@ -4847,7 +5815,7 @@ document.addEventListener("submit", async (event) => {
         const fileInput = form.querySelector('input[name="mayorsPermitFile"]');
         if (fileInput && fileInput.files && fileInput.files[0]) {
           toast("Uploading Mayor's Permit document...");
-          mayorsPermitUrl = await api.uploadMedia(fileInput.files[0]);
+          mayorsPermitUrl = await api.uploadPermitDocument(fileInput.files[0]);
         }
         if (!mayorsPermitUrl) {
           throw new Error("Please upload a photo or scan of your official Mayor's Permit before submitting.");
@@ -4857,6 +5825,7 @@ document.addEventListener("submit", async (event) => {
           mayorsPermitUrl,
           consent: data.has("consent"),
         });
+        state.landlordApp = await api.getLandlordApplication().catch(() => null);
         toast("Permit application submitted for administrator review.");
         route();
         break;
@@ -4899,10 +5868,40 @@ document.addEventListener("submit", async (event) => {
         $("#modal")?.close();
         toast("If an account exists, a reset link was sent.");
         break;
-      case "message-form":
-        await api.sendMessage(state.chat.id, values.text);
-        form.reset();
+      case "message-form": {
+        const convId = state.chat?.id;
+        if (!convId) break;
+
+        const textInput = form.querySelector("#message-text");
+        const caption = (textInput?.value || "").trim();
+        const file = state.selectedChatFile;
+
+        if (file) {
+          const isVideo = file.type.startsWith("video/");
+          toast(isVideo ? "Uploading video walkthrough..." : "Uploading picture...");
+          try {
+            const mediaUrl = await api.uploadChatMedia(file);
+            const tag = isVideo ? "video" : "image";
+            const messageContent = caption ? `[${tag}:${mediaUrl}] ${caption}` : `[${tag}:${mediaUrl}]`;
+            await api.sendMessage(convId, messageContent);
+            state.selectedChatFile = null;
+            const previewBar = $("#chat-attachment-bar");
+            if (previewBar) {
+              previewBar.style.display = "none";
+              previewBar.innerHTML = "";
+            }
+            form.reset();
+            if (textInput) textInput.style.height = "46px";
+          } catch (err) {
+            toast(err.message || "Failed to upload media.");
+          }
+        } else if (caption) {
+          await api.sendMessage(convId, caption);
+          form.reset();
+          if (textInput) textInput.style.height = "46px";
+        }
         break;
+      }
       case "property-form": {
         // 1. Strict Landlord / Admin Check
         if ((!api.profile?.verified || api.profile?.role !== "landlord") && !api.isAdmin) {
@@ -5034,6 +6033,17 @@ document.addEventListener("submit", async (event) => {
         toast("Viewing request sent!");
         route();
         break;
+      case "feedback-form": {
+        await api.submitFeedback({
+          type: values.type || "suggestion",
+          title: values.title?.trim(),
+          description: values.description?.trim(),
+        });
+        $("#modal")?.close();
+        toast("Thank you! Your feedback has been sent directly to the development team.");
+        route();
+        break;
+      }
     }
   } catch (err) {
     if (form.id === "login" && ["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/too-many-requests"].includes(err.code)) loginLimiter.fail();
@@ -5401,6 +6411,65 @@ document.addEventListener("change", (event) => {
     };
     reader.readAsDataURL(file);
   }
+
+  // Chat Media File Selection (Photos or Videos)
+  if (event.target.id === "chat-file-input") {
+    const file = event.target.files?.[0];
+    const previewBar = $("#chat-attachment-bar");
+    if (!file || !previewBar) return;
+
+    state.selectedChatFile = file;
+    const isVideo = file.type.startsWith("video/");
+    const isImage = file.type.startsWith("image/");
+    const objUrl = URL.createObjectURL(file);
+
+    previewBar.style.display = "flex";
+    previewBar.innerHTML = `
+      <div class="chat-attach-thumb">
+        ${isImage ? `<img src="${objUrl}" alt="Preview" />` : `<div class="chat-attach-vid-icon">${icon("video")}</div>`}
+      </div>
+      <div class="chat-attach-details">
+        <strong class="chat-attach-filename">${e(file.name)}</strong>
+        <span class="chat-attach-meta">${(file.size / (1024 * 1024)).toFixed(1)} MB · Ready to send</span>
+      </div>
+      <button type="button" class="chat-attach-del-btn" data-action="remove-chat-attachment" aria-label="Cancel attachment">
+        ${icon("x")}
+      </button>
+    `;
+    refreshIcons();
+  }
+});
+
+// Auto-resize chat textarea
+document.addEventListener("input", (e) => {
+  if (e.target.id === "message-text") {
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(130, Math.max(46, e.target.scrollHeight)) + "px";
+  }
+});
+
+// Enter to send in chat textarea & Keyboard navigation for photo lightbox
+document.addEventListener("keydown", (e) => {
+  if (e.target.id === "message-text" && e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    const form = $("#message-form");
+    if (form) {
+      if (form.requestSubmit) form.requestSubmit();
+      else form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    }
+    return;
+  }
+
+  // Keyboard navigation for photo lightbox (Left / Right arrow keys)
+  if ($("#modal")?.open && activeLightboxState && activeLightboxState.photos?.length > 1) {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      activeLightboxState.prev();
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      activeLightboxState.next();
+    }
+  }
 });
 
 // Copy GPS Coordinates & Landlord Live GPS Location Capture Listener
@@ -5509,9 +6578,15 @@ document.documentElement.dataset.theme = localStorage.getItem("theme") || "light
 api.watchAuth(async (user, error) => {
   if (error) toast(error.message);
   state.favorites = [];
+  state.landlordApp = null;
   if (user && api.profile) {
     try {
-      state.favorites = await api.favorites();
+      const [favs, app] = await Promise.all([
+        api.favorites().catch(() => []),
+        api.getLandlordApplication().catch(() => null),
+      ]);
+      state.favorites = favs;
+      state.landlordApp = app;
     } catch (e) {}
   }
   route();

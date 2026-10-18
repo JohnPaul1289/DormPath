@@ -206,39 +206,89 @@ export function summarizeRooms(rooms) {
     roomTypes: [...new Set(rooms.map((r) => r.type))],
   };
 }
-export function domiReply(text, properties) {
-  const q = text.toLowerCase();
-  if (/scam|phish|fake|safe|fraud|beware/.test(q))
+export function domiReply(text, properties = []) {
+  const q = text.toLowerCase().trim();
+
+  // Social media captions / Facebook posts / promotions
+  if (/caption|facebook|\bfb\b|social media|post.*about|promo|advertise|marketing/.test(q)) {
+    return `Here are engaging Facebook captions you can share about DormPath:
+
+Option 1 (For Students & Boarders):
+"Looking for a safe, verified boarding house in Tuguegarao City? 🏡 Explore DormPath! Check real-time room vacancies, view verified amenities, and get 3D directions near CSU Carig, CSU Andrews, USL, and SPUP. 100% free for students! 🎓✨
+#DormPath #TuguegaraoBoardingHouse #StudentHousing #CSU #USL #SPUP"
+
+Option 2 (For Landlords & Property Owners):
+"Tuguegarao landlords! List your rooms and bedspaces on DormPath to connect directly with university students. Easy room vacancy management, verified inquiries, and zero broker fees. Join DormPath today! 🏠📋
+#DormPath #TuguegaraoRentals #BoardingHouse #LandlordsPH"
+
+Option 3 (Quick & Catchy):
+"Stress-free dorm hunting starts here. Browse verified dorms in Tuguegarao with DormPath! 🚀📍 #DormPath #Tuguegarao"`;
+  }
+
+  // Anti-scam and security guidelines
+  if (/scam|phish|fake|safe|fraud|beware/.test(q)) {
     return "Safety first! (1) Never send reservation money via GCash or wire transfer before inspecting the room in person. (2) Look for the 'Verified Owner' badge on DormPath before transacting. (3) Always formalize agreements with a written receipt or tenancy contract specifying monthly rent and deposit refund conditions. (4) DormPath is free for tenants and will never request your password or payment.";
-  if (/hello|hi\b|kumusta|hey\b|who are you|what can you do/.test(q))
-    return "Kumusta! I am DOMI, your 24/7 Tuguegarao housing guide. You can ask me to find rooms under your budget (e.g., 'rooms under ₱3,000'), explain advance and deposit rules, find dorms near your school (CSU Carig/Andrews, USL, SPUP), or draft a polite inquiry message to an owner!";
-  if (/csu|carig|andrews|usl|spup|university|campus|school/.test(q))
-    return "Tuguegarao tenant housing is centered around CSU Carig (Engineering/Medicine/Tech), CSU Andrews (Main), USL (Bonifacio St.), and SPUP (Mabini St.). You can use our quick campus pills in Explore Rooms or Map View to find places within walking or easy tricycle distance!";
-  if (/wifi|wi-fi|aircon|\bac\b|kitchen|laundry|amenit/.test(q))
+  }
+
+  // Greetings & introduction
+  if (/^(hello|hi|kumusta|hey|good (morning|afternoon|evening)|yo\b)/.test(q) || /who are you|what can you do|about you/.test(q)) {
+    return "Kumusta! I am DOMI, your 24/7 Tuguegarao housing guide. You can ask me to find rooms under your budget (e.g., 'rooms under ₱3,000'), explain advance and deposit rules, find dorms near your school (CSU Carig/Andrews, USL, SPUP), draft polite inquiry messages to landlords, or create Facebook captions!";
+  }
+
+  // Campus locations and transportation
+  if (/csu|carig|andrews|usl|spup|university|campus|school|tricycle|fare|commute/.test(q)) {
+    return "Tuguegarao tenant housing is centered around CSU Carig (Carig Sur - Engineering, Med, Tech), CSU Andrews (Caritan/Centro - Education, Arts), USL (Mabini St. - Engineering, Business), and SPUP (Mabini St. - Nursing, Allied Health). Tricycle fares within the city center are typically ₱15–₱25 with student discount. You can use our 3D Map View to find places within easy walking or riding distance!";
+  }
+
+  // Amenities and utilities
+  if (/wifi|wi-fi|aircon|\bac\b|kitchen|laundry|wash|utilities|electric|water|submeter/.test(q)) {
     return "Many tenant boarding houses in Tuguegarao feature high-speed Wi-Fi for coursework and air conditioning for the warm climate. Check each property's 'Utilities policy' on the details page to confirm if electricity for air conditioning is sub-metered or bundled into the monthly rent.";
-  if (/description|write.*listing/.test(q))
+  }
+
+  // Listing description drafting for landlords
+  if (/description|write.*listing|how to describe/.test(q)) {
     return "A clear description should include your property’s real location, room type, monthly rent, deposit and advance, utilities, amenities, current vacancies and house rules. Keep promises specific and confirm every detail. You can describe the room’s natural light or study space only if the property genuinely has them.";
-  if (/draft|message|reply/.test(q))
+  }
+
+  // Message draft for landlord inquiry
+  if (/draft|message|reply|inquir|how to ask/.test(q)) {
     return "Here’s a draft you can edit: “Hello! I’m interested in your room. Could you confirm the current vacancy, total move-in cost, included utilities, and a convenient time for a viewing? Thank you!”";
-  if (/deposit|advance|cost|price/.test(q))
-    return "Your move-in cost may include the first month’s rent, an advance payment and a refundable deposit. Check each listing’s terms and ask the owner which utilities are separate. I only use owner-provided prices.";
-  const amount = q.match(
-    /(?:₱|php|under|budget|below)\s*(?:₱|php)?\s*([\d,]+)/i,
-  );
-  const budget = amount ? Number(amount[1].replaceAll(",", "")) : 0;
-  const matches = properties.filter(
-    (p) => p.available > 0 && (!budget || p.minPrice <= budget),
-  );
-  if (!properties.length)
-    return "There aren’t any loaded listings for me to match yet. Try exploring the Area Map or browsing rooms when listings are available. I can also help you understand deposits or draft a message to an owner.";
-  return matches.length
-    ? `From the listings loaded, ${matches.length} ${matches.length === 1 ? "property matches" : "properties match"}${budget ? ` your ${money(budget)} budget` : ""}: ${matches
-        .slice(0, 3)
-        .map((p) => `${p.title} (from ${money(p.minPrice)}/month)`)
-        .join(
-          "; ",
-        )}. Vacancy is owner-reported; confirm directly before visiting.`
-    : "No loaded listings match that budget with reported vacancies. Try adjusting your budget or explore the Area Map.";
+  }
+
+  // Deposit, advance, and lease terms
+  if (/deposit|advance|cost|lease|contract|rent control|refund/.test(q)) {
+    return "Your move-in cost typically includes 1 month advance payment and a 1 month refundable security deposit. Check each listing’s terms and ask the owner which utilities are separate. Always ask for a written receipt and confirm refund terms before moving in.";
+  }
+
+  // About DormPath platform
+  if (/what is dormpath|about dormpath|how dormpath works|is dormpath free/.test(q)) {
+    return "DormPath is an official student housing and boarding house locator designed specifically for Tuguegarao City and Peñablanca. It features verified owner inspections (including Mayor's Permits), accurate 3D map directions to campuses, real-time vacancy tracking, and direct landlord messaging. It is 100% free for students!";
+  }
+
+  // Budget & room searching
+  const amountMatch = q.match(/(?:₱|php|under|budget|below|less than)\s*(?:₱|php)?\s*([\d,]+)/i);
+  const isSearchQuery = Boolean(amountMatch) || /room|dorm|boarding|bedspace|rent|apartment|house|place|stay|avail|find|search/.test(q);
+
+  if (isSearchQuery) {
+    const budget = amountMatch ? Number(amountMatch[1].replaceAll(",", "")) : 0;
+    if (!properties || !properties.length) {
+      return "There aren’t any loaded listings for me to match yet. Try exploring the Area Map or browsing rooms when listings are available. I can also help you understand deposits or draft a message to an owner.";
+    }
+
+    const matches = properties.filter(
+      (p) => p.available > 0 && (!budget || p.minPrice <= budget)
+    );
+
+    return matches.length
+      ? `From the listings loaded, ${matches.length} ${matches.length === 1 ? "property matches" : "properties match"}${budget ? ` your ${money(budget)} budget` : ""}: ${matches
+          .slice(0, 3)
+          .map((p) => `${p.title} (from ${money(p.minPrice)}/month)`)
+          .join("; ")}. Vacancy is owner-reported; confirm directly before visiting.`
+      : "No loaded listings match that budget with reported vacancies. Try adjusting your budget or explore the Area Map.";
+  }
+
+  // General conversational response
+  return "Kumusta! I am DOMI, your Tuguegarao housing assistant. I can help you find verified boarding houses near CSU Carig/Andrews, USL, and SPUP, check rental budgets, explain deposit policies, draft landlord inquiries, or write social media captions for DormPath. What would you like help with today?";
 }
 
 export function domiLoaderHtml(size = "section", progress = null) {
@@ -282,7 +332,7 @@ export function formatDistance(km) {
 
 export const NOTABLE_LANDMARKS = [
   { name: "University of Saint Louis (USL)", short: "USL", lat: 17.6056, lng: 121.7228 },
-  { name: "St. Paul University Philippines (SPUP)", short: "SPUP", lat: 17.6167, lng: 121.7289 },
+  { name: "St. Paul University Philippines (SPUP)", short: "SPUP", lat: 17.6160, lng: 121.7210 },
   { name: "CSU Andrews (Main Campus)", short: "CSU Andrews", lat: 17.6189, lng: 121.7197 },
   { name: "CSU Carig Campus", short: "CSU Carig", lat: 17.6534, lng: 121.7501 },
   { name: "Cagayan Valley Medical Center (CVMC)", short: "CVMC", lat: 17.6565, lng: 121.7516 },

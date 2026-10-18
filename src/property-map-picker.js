@@ -5,7 +5,7 @@ import { TUGUEGARAO_BARANGAYS, PENABLANCA_BARANGAYS, BARANGAY_COORDINATES } from
 // Common landmarks in Tuguegarao City & Peñablanca for instant search
 const NOTABLE_LANDMARKS = [
   { name: "University of Saint Louis (USL)", barangay: "Ugac Sur", lat: 17.6056, lng: 121.7228 },
-  { name: "St. Paul University Philippines (SPUP)", barangay: "Centro 02", lat: 17.6167, lng: 121.7289 },
+  { name: "St. Paul University Philippines (SPUP)", barangay: "Ugac Norte", lat: 17.6160, lng: 121.7210 },
   { name: "Cagayan State University (CSU) - Andrews Campus", barangay: "Caritan Centro", lat: 17.6189, lng: 121.7197 },
   { name: "Cagayan State University (CSU) - Carig Campus", barangay: "Carig Sur", lat: 17.6534, lng: 121.7501 },
   { name: "Cagayan Valley Medical Center (CVMC)", barangay: "Carig Sur", lat: 17.6565, lng: 121.7516 },
@@ -104,7 +104,7 @@ export function mountPropertyMapPicker(mountEl, {
         <div class="pmp-quick-chips" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center;">
           <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">Quick jump:</span>
           <button type="button" class="pmp-chip-btn" data-lat="17.6056" data-lng="121.7228" data-name="University of Saint Louis (USL)">USL</button>
-          <button type="button" class="pmp-chip-btn" data-lat="17.6167" data-lng="121.7289" data-name="St. Paul University Philippines (SPUP)">SPUP</button>
+          <button type="button" class="pmp-chip-btn" data-lat="17.6160" data-lng="121.7210" data-name="St. Paul University Philippines (SPUP)">SPUP</button>
           <button type="button" class="pmp-chip-btn" data-lat="17.6189" data-lng="121.7197" data-name="CSU Andrews (Main)">CSU Andrews</button>
           <button type="button" class="pmp-chip-btn" data-lat="17.6534" data-lng="121.7501" data-name="CSU Carig Campus">CSU Carig</button>
           <button type="button" class="pmp-chip-btn" data-lat="17.6565" data-lng="121.7516" data-name="CVMC Hospital">CVMC</button>

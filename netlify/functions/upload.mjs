@@ -35,10 +35,11 @@ export default async function handler(request) {
     const rawContentType = (request.headers.get("content-type") || "").toLowerCase();
     const isJson = rawContentType.includes("application/json");
     const isVideo = rawContentType.startsWith("video/") || request.headers.get("x-resource-type") === "video";
+    const isAudio = rawContentType.startsWith("audio/") || request.headers.get("x-resource-type") === "audio";
     const isImage = rawContentType.startsWith("image/") || rawContentType === "image/webp";
 
-    if (!isJson && !isImage && !isVideo) {
-      return json({ error: "Only images (JPEG, PNG, WebP) or videos (MP4, WebM) are accepted." }, 415);
+    if (!isJson && !isImage && !isVideo && !isAudio) {
+      return json({ error: "Only images (JPEG, PNG, WebP), videos (MP4, WebM), or voice recordings are accepted." }, 415);
     }
 
     // Obtain identity from Google's token verification endpoint, never decode
@@ -78,8 +79,9 @@ export default async function handler(request) {
         { error: "Suspended accounts cannot upload media." },
         403,
       );
-    if (!isLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
-    if (isVideo && !isVerifiedLandlord) return json({ error: "Only verified landlords can upload walkthrough videos." }, 403);
+
+    const isBinaryChatScope = request.headers.get("x-upload-scope") === "chat";
+    const isBinaryPermitScope = request.headers.get("x-upload-scope") === "permit";
 
     const timestamp = Math.floor(Date.now() / 1000);
     const public_id = `dormpath/${uid}/${randomUUID()}`;
@@ -87,7 +89,16 @@ export default async function handler(request) {
     // If client requested signature generation for direct progress upload:
     if (isJson) {
       const reqJson = await request.json().catch(() => ({}));
-      const resourceType = reqJson.resourceType === "video" ? "video" : "image";
+      const isChatScope = reqJson?.scope === "chat" || isBinaryChatScope;
+      const isPermitScope = reqJson?.scope === "permit" || isBinaryPermitScope;
+      if (!isChatScope && !isPermitScope) {
+        if (!isLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
+        if (reqJson.resourceType === "video" && !isVerifiedLandlord) return json({ error: "Only verified landlords can upload walkthrough videos." }, 403);
+      }
+      if (isPermitScope && (reqJson.resourceType === "video" || reqJson.resourceType === "audio" || isVideo || isAudio)) {
+        return json({ error: "Permit documents must be image files." }, 400);
+      }
+      const resourceType = (reqJson.resourceType === "video" || reqJson.resourceType === "audio" || isVideo || isAudio) ? "video" : "image";
       const params = {
         overwrite: "false",
         public_id,
@@ -112,19 +123,27 @@ export default async function handler(request) {
       });
     }
 
+    if (!isBinaryChatScope && !isBinaryPermitScope) {
+      if (!isLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
+      if (isVideo && !isVerifiedLandlord) return json({ error: "Only verified landlords can upload walkthrough videos." }, 403);
+    }
+    if (isBinaryPermitScope && (isVideo || isAudio)) {
+      return json({ error: "Permit documents must be image files." }, 400);
+    }
+
     // Binary upload streaming
     const reader = request.body?.getReader();
     if (!reader) return json({ error: "Media file is missing." }, 400);
     const chunks = [];
     let size = 0;
-    const maxBytes = isVideo ? 40 * 1024 * 1024 : 10 * 1024 * 1024;
+    const maxBytes = isVideo ? 40 * 1024 * 1024 : isAudio ? 20 * 1024 * 1024 : 10 * 1024 * 1024;
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
       if (size > maxBytes) {
         await reader.cancel();
-        return json({ error: `File exceeds the ${isVideo ? "40 MB" : "10 MB"} limit.` }, 413);
+        return json({ error: `File exceeds the ${isVideo ? "40 MB" : isAudio ? "20 MB" : "10 MB"} limit.` }, 413);
       }
       chunks.push(value);
     }
@@ -133,7 +152,7 @@ export default async function handler(request) {
       return json({ error: "Invalid media file content." }, 415);
     }
 
-    const resourceType = isVideo ? "video" : "image";
+    const resourceType = (isVideo || isAudio) ? "video" : "image";
     const params = {
       overwrite: "false",
       public_id,
@@ -151,8 +170,12 @@ export default async function handler(request) {
     for (const [k, v] of Object.entries(params)) body.set(k, v);
     body.set("signature", signature);
     body.set("api_key", key);
-    const mimeType = isVideo ? (rawContentType.startsWith("video/") ? rawContentType : "video/mp4") : (rawContentType.startsWith("image/") ? rawContentType : "image/webp");
-    const filename = isVideo ? "property_video.mp4" : "property_photo.webp";
+    const mimeType = isVideo
+      ? (rawContentType.startsWith("video/") ? rawContentType : "video/mp4")
+      : isAudio
+        ? (rawContentType.startsWith("audio/") ? rawContentType : "audio/webm")
+        : (rawContentType.startsWith("image/") ? rawContentType : "image/webp");
+    const filename = isVideo ? "video_upload.mp4" : isAudio ? "voice_note.webm" : "photo_upload.webp";
     body.set(
       "file",
       new Blob([bytes], { type: mimeType }),

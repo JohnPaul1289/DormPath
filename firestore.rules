@@ -132,6 +132,20 @@ service cloud.firestore {
       allow create: if active() && request.resource.data.keys().hasOnly(['propertyId','userId','reason','status','createdAt']) && request.resource.data.userId == me() && text(request.resource.data.reason,2000) && property(request.resource.data.propertyId).status == 'published' && request.resource.data.status == 'open' && request.resource.data.createdAt == request.time;
       allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'resolved';
     }
+    match /feedback/{id} {
+      allow get: if admin() || (active() && resource.data.userId == me());
+      allow list: if bounded() && (admin() || (active() && resource.data.userId == me()));
+      allow create: if active() && request.resource.data.keys().hasOnly(['userId','userName','userRole','userEmail','type','title','description','status','adminNotes','createdAt'])
+        && request.resource.data.userId == me()
+        && request.resource.data.type in ['suggestion','bug','general']
+        && text(request.resource.data.title, 120)
+        && text(request.resource.data.description, 2000)
+        && request.resource.data.status == 'open'
+        && request.resource.data.adminNotes == ''
+        && request.resource.data.createdAt == request.time;
+      allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','adminNotes']) && request.resource.data.status in ['open','in_review','planned','resolved','closed'] && (request.resource.data.adminNotes is string && request.resource.data.adminNotes.size() <= 1000);
+      allow delete: if admin();
+    }
     match /subscriptions/{id} { allow get: if admin() || (active() && resource.data.userId == me()); allow list: if admin() && bounded(); }
     match /auditLogs/{id} { allow get: if admin(); allow list: if admin() && bounded(); allow create: if admin() && request.resource.data.keys().hasOnly(['actorId','collection','targetId','changes','createdAt']) && request.resource.data.actorId == me() && request.resource.data.createdAt == request.time; }
     match /{document=**} { allow read, write: if false; }

@@ -56,13 +56,20 @@ export default defineConfig({
       name: "netlify-functions-dev",
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
-          if (req.url === "/.netlify/functions/upload" && req.method === "POST") {
+          if (
+            (req.url === "/.netlify/functions/upload" || req.url === "/.netlify/functions/domi") &&
+            req.method === "POST"
+          ) {
+            const funcName = req.url.split("/").pop();
             try {
               try {
                 const envContent = readFileSync(".env.local", "utf8");
                 envContent.split(/\r?\n/).forEach((line) => {
                   const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-                  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+                  if (m) {
+                    const val = m[2].trim().replace(/^['"]|['"]$/g, "");
+                    if (val) process.env[m[1]] = val;
+                  }
                 });
               } catch {}
 
@@ -70,21 +77,21 @@ export default defineConfig({
               for await (const chunk of req) chunks.push(chunk);
               const bodyBuffer = Buffer.concat(chunks);
 
-              const { default: uploadHandler } = await import("./netlify/functions/upload.mjs");
+              const { default: handler } = await import(`./netlify/functions/${funcName}.mjs`);
               
               const headers = new Headers();
               for (const [k, v] of Object.entries(req.headers)) {
                 if (v) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
               }
 
-              const webReq = new Request("http://localhost/.netlify/functions/upload", {
+              const webReq = new Request(`http://localhost/.netlify/functions/${funcName}`, {
                 method: "POST",
                 headers,
                 body: bodyBuffer,
                 duplex: "half",
               });
 
-              const webRes = await uploadHandler(webReq);
+              const webRes = await handler(webReq);
               res.statusCode = webRes.status;
               webRes.headers.forEach((v, k) => res.setHeader(k, v));
               const resBody = await webRes.text();
@@ -92,7 +99,7 @@ export default defineConfig({
             } catch (err) {
               res.statusCode = 500;
               res.setHeader("Content-Type", "application/json");
-              res.end(JSON.stringify({ error: err.message || "Upload handler error." }));
+              res.end(JSON.stringify({ error: err.message || `${funcName} handler error.` }));
             }
             return;
           }
