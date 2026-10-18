@@ -85,6 +85,12 @@ import {
   Lock,
   HardDrive,
   Copy,
+  Wifi,
+  Wind,
+  Utensils,
+  Car,
+  Bath,
+  BookOpen,
 } from "lucide";
 
 const icons = {
@@ -160,6 +166,12 @@ const icons = {
   Lock,
   HardDrive,
   Copy,
+  Wifi,
+  Wind,
+  Utensils,
+  Car,
+  Bath,
+  BookOpen,
 };
 
 import L from "leaflet";
@@ -1050,6 +1062,7 @@ function empty(title, description, action = "") {
 }
 
 // Redesigned Property Details Page
+// Redesigned Property Details Page
 async function details(id) {
   const p = await api.getProperty(id);
   const rooms = await api.listRooms(id, p.status === "published");
@@ -1057,72 +1070,160 @@ async function details(id) {
   const coords = getPropertyCoordinates(p);
   const lat = coords ? coords[1] : null;
   const lng = coords ? coords[0] : null;
+  const saved = (state.favorites || []).some((f) => f.propertyId === p.id);
+  const photos = p.photos || [];
 
   return `
     <div class="detail-container">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+      <!-- Property Title Bar -->
+      <div class="detail-header-row">
         <div>
           <div class="overline">${e(p.barangay)} · TUGUEGARAO / PEÑABLANCA</div>
-          <h1>${e(p.title)}</h1>
-          <p style="display:flex; align-items:center; gap:6px; margin-top:4px;">
-            ${icon("map-pin")} ${e(p.address)}
+          <h1 style="margin:4px 0 6px; font-size:clamp(1.5rem, 2.8vw, 2.25rem); font-weight:800; color:var(--text-main);">${e(p.title)}</h1>
+          <p style="display:flex; align-items:center; gap:6px; margin:0; color:var(--text-secondary); font-size:0.9375rem;">
+            ${icon("map-pin")} <span>${e(p.address)}, ${e(p.barangay)}</span>
           </p>
         </div>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <button class="button outline ${saved ? "saved" : ""}" data-save="${e(p.id)}">
-            ${icon("heart")} <span>${saved ? "Saved" : "Save"}</span>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button class="button outline ${saved ? "saved" : ""}" data-save="${e(p.id)}" style="display:inline-flex; align-items:center; gap:8px;">
+            ${icon("heart")} <span>${saved ? "Saved to Shortlist" : "Save"}</span>
           </button>
-          ${lat && lng ? `<a class="button primary" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener noreferrer">${icon("navigation")} Directions</a>` : `<span class="badge">Location pending</span>`}
+          ${lat && lng ? `<a class="button primary" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; gap:8px; font-weight:700;">${icon("navigation")} Directions</a>` : `<span class="badge">Location pending</span>`}
         </div>
       </div>
 
-      <div class="detail-gallery">
+      <!-- Modern Responsive Photo Gallery -->
+      <div class="detail-gallery ${photos.length === 1 ? "single-photo" : photos.length === 2 ? "two-photos" : ""}">
         ${
-          p.photos?.[0]
-            ? `<img src="${e(p.photos[0])}" class="gallery-main-img" alt="Primary view of ${e(p.title)}">`
-            : `<div class="gallery-main-img" style="display:grid; place-items:center; background:var(--bg-subtle); color:var(--text-muted);">${icon("building-2")} No photos yet</div>`
-        }
-        <div class="gallery-sub-grid">
-          ${(p.photos || [])
-            .slice(1, 3)
-            .map((url) => `<img src="${e(url)}" class="gallery-sub-img" alt="Photo of ${e(p.title)}">`)
-            .join("") ||
-            `<div class="gallery-sub-img" style="display:grid; place-items:center; background:var(--bg-subtle);">${icon("image")}</div><div class="gallery-sub-img" style="display:grid; place-items:center; background:var(--bg-subtle);">${icon("image")}</div>`
+          photos.length > 0
+            ? `
+          <div class="gallery-hero-wrapper" data-preview-photo="${e(photos[0])}">
+            <img src="${e(photos[0])}" class="gallery-main-img" alt="Primary view of ${e(p.title)}" />
+          </div>
+          ${
+            photos.length > 1
+              ? `
+            <div class="gallery-sub-grid">
+              ${photos
+                .slice(1, 3)
+                .map(
+                  (url, idx) => `
+                <div class="gallery-sub-wrapper" data-preview-photo="${e(url)}">
+                  <img src="${e(url)}" class="gallery-sub-img" alt="Photo ${idx + 2} of ${e(p.title)}" />
+                </div>
+              `
+                )
+                .join("")}
+              ${
+                photos.length === 2
+                  ? `<div class="gallery-sub-wrapper gallery-placeholder-slot" style="display:grid; place-items:center; background:var(--bg-subtle); color:var(--text-muted); font-size:0.8125rem;">${icon("camera")} Verified Room</div>`
+                  : ""
+              }
+            </div>
+          `
+              : ""
           }
-        </div>
+          <div class="gallery-count-badge">
+            ${icon("camera")} <span>${photos.length} Photo${photos.length > 1 ? "s" : ""} · Click to enlarge</span>
+          </div>
+        `
+            : `
+          <div class="gallery-main-img gallery-empty-placeholder">
+            <div style="font-size:2.5rem; color:var(--primary); margin-bottom:8px;">${icon("building-2")}</div>
+            <strong style="font-size:1.0625rem; color:var(--text-main);">Verified Property Listing</strong>
+            <p style="margin:4px 0 0; font-size:0.875rem; color:var(--text-secondary);">Direct inquiries and room reservations active</p>
+          </div>
+        `
+        }
       </div>
 
       <div class="detail-layout">
+        <!-- Main Property Content Column -->
         <div>
+          <!-- About and Features Section -->
           <div class="detail-section">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
-              <span class="badge badge-success">${icon("shield-check")} Verified Owner</span>
-              <span class="badge badge-outline">${e(p.roomTypes?.[0] || "Room")}</span>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+              <span class="badge badge-success" style="padding:6px 14px; font-size:0.8125rem; font-weight:700;">
+                ${icon("shield-check")} Verified Owner
+              </span>
+              <span class="badge badge-outline" style="padding:6px 14px; font-size:0.8125rem;">
+                ${e(p.roomTypes?.[0] || "Student Housing")}
+              </span>
+              <span class="badge ${p.available > 0 ? "badge-success" : "badge-outline"}" style="padding:6px 14px; font-size:0.8125rem;">
+                ${p.available > 0 ? `● ${p.available} Space(s) Available` : "● Fully Booked"}
+              </span>
             </div>
-            <h3>About this space</h3>
-            <p style="white-space:pre-wrap; margin-top:8px;">${e(p.description)}</p>
 
-            <h3 style="margin-top:24px; margin-bottom:12px;">Amenities</h3>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              ${(p.amenities || []).map((a) => `<span class="badge badge-outline">${icon("check")} ${e(a)}</span>`).join("")}
+            <h3 style="font-size:1.25rem; font-weight:800; margin-bottom:12px; color:var(--text-main);">About this space</h3>
+            <p style="white-space:pre-wrap; line-height:1.7; color:var(--text-main); font-size:0.9375rem; margin:0;">${e(p.description || "Clean and well-maintained student boarding house offering convenient access to universities in Tuguegarao.")}</p>
+
+            <!-- Standard Move-in & Utility Terms -->
+            <div class="move-in-terms-card">
+              <div style="font-size:0.8125rem; font-weight:800; text-transform:uppercase; color:var(--primary); letter-spacing:0.05em; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+                ${icon("wallet")} Standard Move-in & Lease Terms
+              </div>
+              <div class="move-in-terms-grid">
+                <div class="move-in-term-item">
+                  <span class="term-label">Security Deposit</span>
+                  <strong class="term-val">1 Month (Refundable)</strong>
+                </div>
+                <div class="move-in-term-item">
+                  <span class="term-label">Advance Payment</span>
+                  <strong class="term-val">1 Month Advance Rent</strong>
+                </div>
+                <div class="move-in-term-item">
+                  <span class="term-label">Electricity</span>
+                  <strong class="term-val">Submetered / Per usage</strong>
+                </div>
+                <div class="move-in-term-item">
+                  <span class="term-label">Water & Utilities</span>
+                  <strong class="term-val">Included in monthly rent</strong>
+                </div>
+              </div>
             </div>
 
-            <h3 style="margin-top:24px; margin-bottom:8px;">House Rules</h3>
-            <p style="white-space:pre-wrap;">${e(p.rules)}</p>
+            <!-- Amenities with Dedicated Lucide Icons -->
+            <h3 style="margin-top:32px; margin-bottom:14px; font-size:1.25rem; font-weight:800; color:var(--text-main);">Amenities & Building Perks</h3>
+            <div class="amenity-chip-grid">
+              ${(p.amenities || []).map((a) => {
+                const norm = String(a).toLowerCase();
+                let iconName = "check";
+                if (norm.includes("wifi") || norm.includes("wi-fi") || norm.includes("internet")) iconName = "wifi";
+                else if (norm.includes("air") || norm.includes("ac") || norm.includes("cooling")) iconName = "wind";
+                else if (norm.includes("kitchen") || norm.includes("cook") || norm.includes("dining")) iconName = "utensils";
+                else if (norm.includes("laundry") || norm.includes("wash")) iconName = "sparkles";
+                else if (norm.includes("parking") || norm.includes("garage")) iconName = "car";
+                else if (norm.includes("bath") || norm.includes("cr") || norm.includes("toilet")) iconName = "bath";
+                else if (norm.includes("study") || norm.includes("desk") || norm.includes("table")) iconName = "book-open";
+                else if (norm.includes("cctv") || norm.includes("security") || norm.includes("guard")) iconName = "shield-check";
+                return `
+                  <div class="amenity-chip">
+                    <div class="chip-icon">${icon(iconName)}</div>
+                    <span>${e(a)}</span>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+
+            <!-- House Rules -->
+            <h3 style="margin-top:32px; margin-bottom:12px; font-size:1.25rem; font-weight:800; color:var(--text-main);">House Rules & Guidelines</h3>
+            <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:16px 20px;">
+              <p style="white-space:pre-wrap; margin:0; line-height:1.65; font-size:0.9375rem; color:var(--text-secondary);">${e(p.rules || "Observe standard quiet hours from 10:00 PM to 6:00 AM. Visitors permitted in common areas during daytime hours. No smoking inside premises.")}</p>
+            </div>
 
             ${
               p.video
                 ? `
-              <div style="margin-top:24px; padding:16px; border-radius:var(--radius-lg); background:var(--bg-subtle); border:1px solid var(--border);">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+              <div style="margin-top:28px; padding:20px; border-radius:var(--radius-xl); background:var(--bg-subtle); border:1px solid var(--border);">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
                   <span class="badge" style="background:#ef4444; color:#fff; font-weight:700;">▶ Video Tour</span>
-                  <strong style="font-size:0.9375rem;">Walkthrough Video</strong>
+                  <strong style="font-size:1rem; color:var(--text-main);">Walkthrough Video Preview</strong>
                 </div>
                 <div style="border-radius:var(--radius-md); overflow:hidden; background:#000;">
                   ${
                     p.video.includes("youtube.com") || p.video.includes("youtu.be")
                       ? `<iframe src="${p.video.replace("watch?v=", "embed/").replace("youtu.be/", "www.youtube.com/embed/")}" style="width:100%; aspect-ratio:16/9; border:none;" allowfullscreen></iframe>`
-                      : `<video src="${e(p.video)}" controls style="width:100%; max-height:400px; display:block;" poster="${e(p.photos?.[0] || "")}"></video>`
+                      : `<video src="${e(p.video)}" controls style="width:100%; max-height:420px; display:block;" poster="${e(p.photos?.[0] || "")}"></video>`
                   }
                 </div>
               </div>
@@ -1131,27 +1232,65 @@ async function details(id) {
             }
           </div>
 
+          <!-- Rooms & Availability Section -->
           <div class="detail-section">
-            <h3>Rooms & Availability</h3>
-            <p style="margin-bottom:16px;">Confirmed by owner: ${date(p.vacancyConfirmedAt)}</p>
-            <div style="display:grid; gap:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+              <div>
+                <h3 style="margin:0 0 4px; font-size:1.25rem; font-weight:800; color:var(--text-main);">Rooms & Availability</h3>
+                <span style="font-size:0.8125rem; color:var(--text-secondary);">Last confirmed by owner: ${date(p.vacancyConfirmedAt)}</span>
+              </div>
+              <span class="badge badge-outline" style="font-size:0.75rem;">
+                ${rooms.length} Room Type${rooms.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            <div class="room-inventory-grid">
               ${
                 rooms
-                  .map(
-                    (r) => `
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:14px; background:var(--bg-subtle); border-radius:var(--radius-md);">
-                  <div>
-                    <strong>${e(r.name)}</strong>
-                    <div style="font-size:0.8125rem; color:var(--text-secondary);">${e(r.type)} · ${r.available} of ${r.capacity} spaces available</div>
+                  .map((r) => {
+                    const isAvailable = (r.available || 0) > 0;
+                    const availPct = r.capacity > 0 ? Math.min(100, Math.round((r.available / r.capacity) * 100)) : 0;
+                    return `
+                  <div class="room-inventory-card">
+                    <div style="flex:1; min-width:200px;">
+                      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+                        <strong style="font-size:1.0625rem; color:var(--text-main);">${e(r.name)}</strong>
+                        <span class="badge badge-outline" style="font-size:0.75rem;">${e(r.type)}</span>
+                        <span class="badge ${isAvailable ? "badge-success" : "badge-outline"}" style="font-size:0.75rem;">
+                          ${isAvailable ? `● ${r.available} Vacant Space${r.available > 1 ? "s" : ""}` : "● Fully Booked"}
+                        </span>
+                      </div>
+                      <div style="font-size:0.8125rem; color:var(--text-secondary); display:flex; align-items:center; gap:10px;">
+                        <span>${r.available} of ${r.capacity} total capacity</span>
+                      </div>
+                      <div class="room-avail-meter">
+                        <div class="room-avail-fill" style="width:${availPct}%; background:${isAvailable ? "var(--success)" : "var(--text-muted)"};"></div>
+                      </div>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                      <div style="text-align:right;">
+                        <div style="font-size:1.25rem; font-weight:800; color:var(--primary); line-height:1.2;">${money(r.price)}</div>
+                        <div style="font-size:0.75rem; color:var(--text-secondary);">per month</div>
+                      </div>
+                      ${
+                        isAvailable
+                          ? `
+                        <button type="button" class="button primary small" data-inquire-room="${e(r.name)}" data-inquire-property="${e(p.id)}" style="padding:8px 16px; font-weight:700;">
+                          Inquire Room
+                        </button>
+                      `
+                          : `
+                        <button type="button" class="button outline small" disabled style="opacity:0.6; cursor:not-allowed;">
+                          Occupied
+                        </button>
+                      `
+                      }
+                    </div>
                   </div>
-                  <div>
-                    <strong style="font-size:1.125rem; color:var(--primary);">${money(r.price)}</strong>
-                    <small>/ month</small>
-                  </div>
-                </div>
-              `,
-                  )
-                  .join("") || "<p>No room inventory listed yet.</p>"
+                `;
+                  })
+                  .join("") || "<p class='text-muted'>No individual room inventory listed by owner yet.</p>"
               }
             </div>
           </div>
@@ -1160,15 +1299,17 @@ async function details(id) {
           <div class="detail-section" style="margin-top:24px;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px; margin-bottom:16px;">
               <div>
-                <h3 style="display:flex; align-items:center; gap:8px;">
+                <h3 style="display:flex; align-items:center; gap:8px; margin:0 0 4px; font-size:1.25rem; font-weight:800; color:var(--text-main);">
                   ${icon("map-pin")} Property Location & Directions
                 </h3>
-                <p style="font-size:0.875rem; color:var(--text-secondary); margin-top:4px;">
+                <p style="font-size:0.875rem; color:var(--text-secondary); margin:0;">
                   ${e(p.address)}, ${e(p.barangay)}, Tuguegarao / Peñablanca
                 </p>
-                ${lat && lng ? `<span style="font-size:0.75rem; color:var(--text-muted); font-family:monospace; display:inline-block; margin-top:2px;">Pin GPS: ${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E</span>` : ""}
+                ${lat && lng ? `<span style="font-size:0.75rem; color:var(--text-muted); font-family:monospace; display:inline-block; margin-top:4px;">Pin GPS: ${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E</span>` : ""}
               </div>
-              ${lat && lng ? `
+              ${
+                lat && lng
+                  ? `
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   <a class="button primary small" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener noreferrer" style="font-weight:700;">
                     ${icon("navigation")} Turn-by-Turn Directions
@@ -1183,65 +1324,107 @@ async function details(id) {
                     ${icon("copy")} Copy Coordinates
                   </button>
                 </div>
-              ` : `<span class="badge">Coordinates pending confirmation</span>`}
+              `
+                  : `<span class="badge">Coordinates pending confirmation</span>`
+              }
             </div>
 
             <!-- Interactive Leaflet Preview Canvas -->
-            ${lat && lng ? `
-              <div id="property-detail-map" style="width:100%; height:300px; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); margin-bottom:14px; background:var(--bg-subtle);"></div>
+            ${
+              lat && lng
+                ? `
+              <div id="property-detail-map" style="width:100%; height:320px; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); margin-bottom:18px; background:var(--bg-subtle);"></div>
 
-              <!-- Campus Proximity Badges -->
-              <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:14px 16px;">
-                <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
-                  ${icon("compass")} Proximity to Campuses & Landmarks
+              <!-- Campus & Landmark Proximity Badges -->
+              <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-lg); padding:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                  <div style="font-size:0.8125rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                    ${icon("compass")} Proximity to Campuses & Landmarks
+                  </div>
+                  <span style="font-size:0.75rem; color:var(--text-secondary);">Accurate distances from verified GPS pin</span>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
-                  ${NOTABLE_LANDMARKS.slice(0, 6).map((lm) => {
-                    const d = calculateDistanceKm(lat, lng, lm.lat, lm.lng);
-                    const fmt = formatDistance(d);
-                    const estWalk = Math.round(d * 12);
-                    const estRide = Math.max(2, Math.round(d * 2.5));
-                    return `
-                      <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 12px; font-size:0.8125rem;">
-                        <div style="font-weight:700; color:var(--text-main); margin-bottom:2px;">${e(lm.short)}</div>
-                        <div style="color:var(--primary); font-weight:700;">${fmt}</div>
-                        <div style="color:var(--text-muted); font-size:0.75rem;">${d <= 1.2 ? `~${estWalk} min walk` : `~${estRide} min ride`}</div>
-                      </div>
-                    `;
-                  }).join("")}
+
+                <div class="landmark-proximity-grid">
+                  ${(() => {
+                    const list = NOTABLE_LANDMARKS.slice(0, 8)
+                      .map((lm) => {
+                        const d = calculateDistanceKm(lat, lng, lm.lat, lm.lng);
+                        return { ...lm, d, fmt: formatDistance(d) };
+                      })
+                      .sort((a, b) => a.d - b.d);
+
+                    return list
+                      .map((lm, idx) => {
+                        const isNearest = idx === 0;
+                        const isWalk = lm.d <= 1.2;
+                        const estWalk = Math.max(1, Math.round(lm.d * 12));
+                        const estRide = Math.max(2, Math.round(lm.d * 2.5));
+                        return `
+                          <div class="landmark-card ${isNearest ? "nearest" : ""}">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                              <strong style="font-size:0.875rem; color:var(--text-main);">${e(lm.short)}</strong>
+                              ${isNearest ? `<span class="badge badge-success" style="font-size:0.65rem; padding:2px 6px;">Nearest</span>` : ""}
+                            </div>
+                            <div style="font-size:1.125rem; font-weight:800; color:var(--primary); margin-bottom:4px;">${lm.fmt}</div>
+                            <div style="font-size:0.75rem; color:var(--text-secondary); display:flex; align-items:center; gap:4px;">
+                              ${isWalk ? `🚶 ~${estWalk} min walk` : `🛵 ~${estRide} min ride`}
+                            </div>
+                          </div>
+                        `;
+                      })
+                      .join("");
+                  })()}
                 </div>
               </div>
-            ` : ""}
+            `
+                : ""
+            }
           </div>
         </div>
 
+        <!-- Sticky Right Inquiry Sidebar -->
         <aside class="sticky-inquiry-card">
-          <div class="inquiry-price-header">
-            <span class="text-muted" style="font-size:0.8125rem;">Starting from</span>
-            <div><strong>${money(p.minPrice)}</strong> <span style="font-size:0.9375rem; color:var(--text-secondary);">/ month</span></div>
-            <div style="margin-top:4px; font-size:0.875rem; color:${p.available > 0 ? "var(--success)" : "var(--text-muted)"}; font-weight:600;">
-              ${p.available > 0 ? `● ${p.available} space(s) reported available` : "Currently full"}
+          <div class="inquiry-price-header" style="padding-bottom:18px; margin-bottom:20px; border-bottom:1px solid var(--border-light);">
+            <span class="text-muted" style="font-size:0.8125rem; text-transform:uppercase; font-weight:700; letter-spacing:0.04em;">Starting from</span>
+            <div style="display:flex; align-items:baseline; gap:6px; margin:4px 0;">
+              <strong style="font-size:1.875rem; font-weight:800; color:var(--navy);">${money(p.minPrice)}</strong>
+              <span style="font-size:0.9375rem; color:var(--text-secondary); font-weight:500;">/ month</span>
+            </div>
+            <div style="margin-top:6px; font-size:0.875rem; color:${p.available > 0 ? "var(--success)" : "var(--text-muted)"}; font-weight:700; display:flex; align-items:center; gap:6px;">
+              ${p.available > 0 ? `● ${p.available} space(s) reported available` : "● Currently fully booked"}
             </div>
           </div>
 
-          <div style="margin-bottom:20px;">
-            <div style="font-size:0.875rem; font-weight:700; margin-bottom:4px;">Landlord</div>
-            <div style="display:flex; align-items:center; gap:10px;">
+          <!-- Landlord Profile Card -->
+          <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:16px; margin-bottom:20px;">
+            <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px;">
+              Property Owner
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
               <div class="sidebar-avatar">${(p.ownerName || "O")[0].toUpperCase()}</div>
-              <div>
-                <strong>${e(p.ownerName)}</strong>
-                <div style="font-size:0.75rem; color:var(--success);">Verified Property Owner</div>
+              <div style="flex:1; min-width:0;">
+                <strong style="font-size:0.9375rem; color:var(--text-main); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${e(p.ownerName)}</strong>
+                <div style="font-size:0.75rem; color:var(--success); font-weight:600; display:flex; align-items:center; gap:4px; margin-top:2px;">
+                  ${icon("badge-check")} Verified Owner
+                </div>
               </div>
             </div>
           </div>
 
-          <div style="display:grid; gap:10px;">
-            <button class="button primary full large" data-chat-property="${e(p.id)}">
+          <!-- CTAs -->
+          <div style="display:grid; gap:12px;">
+            <button class="button primary full large" data-chat-property="${e(p.id)}" style="font-size:1rem; font-weight:700; padding:14px;">
               ${icon("message-circle")} Message Landlord Free
             </button>
-            <button class="button text-button small" data-report="${e(p.id)}" style="color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+            <button class="button text-button small" data-report="${e(p.id)}" style="color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px;">
               ${icon("flag")} Report Landlord or Listing
             </button>
+          </div>
+
+          <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border-light); text-align:center;">
+            <p style="font-size:0.75rem; color:var(--text-muted); margin:0; line-height:1.45;">
+              DormPath is 100% free for students · Direct landlord contact · No broker commission
+            </p>
           </div>
         </aside>
       </div>
@@ -1877,16 +2060,50 @@ async function profilePage() {
           landlordApplication
             ? `
         <div style="background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; margin-top:12px;">
-          <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:10px;">
+          <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:12px;">
             Verified Permit Reference Record
           </div>
-          <div class="profile-grid-2" style="font-size:0.8125rem;">
+          <div class="profile-grid-2" style="font-size:0.8125rem; margin-bottom:16px;">
             <div><strong>Legal Owner Name:</strong> ${e(landlordApplication.legalName || "—")}</div>
             <div><strong>Registered Property:</strong> ${e(landlordApplication.propertyAddress || "—")}</div>
             <div><strong>Proof of Ownership / Lease:</strong> ${e(landlordApplication.proofOfOwnershipRef || "—")}</div>
             <div><strong>Business Permit:</strong> ${e(landlordApplication.businessPermitNumber || "—")} (exp: ${e(landlordApplication.businessPermitExpires || "—")})</div>
             <div><strong>Barangay Clearance:</strong> ${e(landlordApplication.barangayClearanceNumber || "—")} (exp: ${e(landlordApplication.barangayClearanceExpires || "—")})</div>
             <div><strong>Fire Safety Certificate:</strong> ${e(landlordApplication.fireSafetyNumber || "—")} (exp: ${e(landlordApplication.fireSafetyExpires || "—")})</div>
+          </div>
+
+          <!-- Official Uploaded Permit Scan Record -->
+          <div style="background:var(--bg-subtle); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              ${
+                landlordApplication.mayorsPermitUrl
+                  ? `
+                <a href="${e(landlordApplication.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" title="View Full Document">
+                  <img src="${e(landlordApplication.mayorsPermitUrl)}" alt="Mayor's Permit" style="width:58px; height:58px; object-fit:cover; border-radius:6px; border:1px solid var(--border); box-shadow:var(--shadow-xs);" />
+                </a>
+              `
+                  : `
+                <div style="width:58px; height:58px; border-radius:6px; background:rgba(239,68,68,0.08); color:var(--danger); display:grid; place-items:center; border:1px dashed rgba(239,68,68,0.3);">
+                  ${icon("file-text")}
+                </div>
+              `
+              }
+              <div>
+                <strong style="font-size:0.875rem; color:var(--text-main); display:block;">Official Mayor's Permit Scan</strong>
+                <span style="font-size:0.75rem; color:${landlordApplication.mayorsPermitUrl ? "var(--success)" : "var(--text-muted)"}; font-weight:600;">
+                  ${landlordApplication.mayorsPermitUrl ? "✓ Verified Document on File" : "No scan attached to record"}
+                </span>
+              </div>
+            </div>
+            ${
+              landlordApplication.mayorsPermitUrl
+                ? `
+              <a href="${e(landlordApplication.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" class="button outline small" style="display:inline-flex; align-items:center; gap:6px;">
+                ${icon("external-link")} View Document
+              </a>
+            `
+                : ""
+            }
           </div>
         </div>
         `
@@ -1930,14 +2147,17 @@ async function profilePage() {
             <input type="file" name="mayorsPermitFile" id="mayors-permit-file-input" accept="image/jpeg,image/png,image/webp">
             <input type="hidden" name="mayorsPermitUrl" value="${e(landlordApplication?.mayorsPermitUrl || "")}">
 
+            <!-- Live Client-side Image Selection Preview -->
+            <div id="mayors-permit-live-preview" style="display:none; margin-top:12px;"></div>
+
             ${
               landlordApplication?.mayorsPermitUrl
                 ? `
-              <div style="display:flex; align-items:center; gap:14px; margin-top:12px; padding:10px 14px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md);">
-                <img src="${e(landlordApplication.mayorsPermitUrl)}" alt="Current Mayor's Permit" style="width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--border-light);" />
+              <div id="mayors-permit-current-badge" style="display:flex; align-items:center; gap:14px; margin-top:12px; padding:10px 14px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-md);">
+                <img src="${e(landlordApplication.mayorsPermitUrl)}" alt="Current Mayor's Permit" style="width:56px; height:56px; object-fit:cover; border-radius:6px; border:1px solid var(--border-light);" />
                 <div style="flex:1;">
-                  <strong style="font-size:0.875rem; color:var(--success); display:block;">Mayor's Permit Attached</strong>
-                  <a href="${e(landlordApplication.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem; color:var(--primary); font-weight:600;">
+                  <strong style="font-size:0.875rem; color:var(--success); display:block;">Current Mayor's Permit on File</strong>
+                  <a href="${e(landlordApplication.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem; color:var(--primary); font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-top:2px;">
                     ${icon("external-link")} View Current Document
                   </a>
                 </div>
@@ -2645,31 +2865,39 @@ async function adminPage(tab = "users") {
                           </div>
                         </div>
 
-                        <div style="background:var(--bg-surface); padding:14px; border:1px solid var(--border-light); border-radius:var(--radius-md);">
-                          <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="background:var(--bg-surface); padding:16px; border:1px solid var(--border-light); border-radius:var(--radius-md);">
+                          <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
                             <span>2. Uploaded Mayor's Permit Document</span>
-                            ${application.mayorsPermitUrl ? `<span class="badge badge-success" style="font-size:0.7rem;">Document Attached</span>` : ""}
+                            ${application.mayorsPermitUrl ? `<span class="badge badge-success" style="font-size:0.7rem;">Document Attached</span>` : `<span class="badge badge-warning" style="font-size:0.7rem;">Scan Missing</span>`}
                           </div>
                           ${
                             application.mayorsPermitUrl
                               ? `
                             <div style="display:flex; flex-direction:column; gap:10px;">
-                              <a href="${e(application.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" title="Click to view full size" style="display:block; max-height:220px; overflow:hidden; border-radius:var(--radius-sm); border:1px solid var(--border); background:#0f172a; text-align:center;">
-                                <img src="${e(application.mayorsPermitUrl)}" alt="Mayor's Permit Document" style="width:100%; height:auto; max-height:220px; object-fit:contain; margin:0 auto;" />
-                              </a>
-                              <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <span style="font-size:0.75rem; color:var(--text-muted);">Verify permit number, business name & seal match</span>
-                                <a href="${e(application.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" class="button outline small" style="padding:4px 10px; font-size:0.75rem;">
-                                  ${icon("external-link")} View Full Size
+                              <div style="position:relative; max-height:220px; overflow:hidden; border-radius:var(--radius-sm); border:1px solid var(--border); background:#0f172a; text-align:center; cursor:pointer;" data-preview-photo="${e(application.mayorsPermitUrl)}" title="Click to enlarge permit document">
+                                <img src="${e(application.mayorsPermitUrl)}" alt="Mayor's Permit Document" style="width:100%; height:auto; max-height:220px; object-fit:contain; margin:0 auto; display:block;" />
+                                <span style="position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,0.75); color:#fff; font-size:0.75rem; padding:3px 8px; border-radius:4px; display:inline-flex; align-items:center; gap:4px; pointer-events:none;">
+                                  ${icon("external-link")} Click to Enlarge
+                                </span>
+                              </div>
+                              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                                <span style="font-size:0.75rem; color:var(--text-muted);">Inspection: Check City dry seal & applicant legal name</span>
+                                <a href="${e(application.mayorsPermitUrl)}" target="_blank" rel="noopener noreferrer" class="button outline small" style="padding:4px 10px; font-size:0.75rem; display:inline-flex; align-items:center; gap:4px;">
+                                  ${icon("external-link")} Full Resolution
                                 </a>
                               </div>
                             </div>
                           `
                               : `
-                            <div style="background:rgba(239,68,68,0.06); border:1px dashed rgba(239,68,68,0.4); border-radius:var(--radius-md); padding:24px 16px; text-align:center; color:var(--danger); font-size:0.875rem;">
+                            <div style="background:rgba(239,68,68,0.06); border:1px dashed rgba(239,68,68,0.4); border-radius:var(--radius-md); padding:20px 16px; text-align:center; color:var(--danger); font-size:0.875rem;">
                               <div style="font-size:1.5rem; margin-bottom:6px;">${icon("alert-circle")}</div>
-                              <strong>No Mayor's Permit uploaded</strong>
-                              <p style="margin:4px 0 0; font-size:0.75rem; color:var(--text-secondary);">Decline or request document upload from applicant.</p>
+                              <strong style="color:var(--danger); display:block; margin-bottom:4px;">No Mayor's Permit Document Uploaded</strong>
+                              <p style="margin:0 0 12px; font-size:0.8125rem; color:var(--text-secondary); line-height:1.4;">
+                                This application was submitted without a photo/scan of the Mayor's permit. Request applicant to upload the required scan.
+                              </p>
+                              <button type="button" class="button outline small" data-review-landlord="${e(application.id)}:request-permit" style="border-color:rgba(239,68,68,0.4); color:var(--danger); display:inline-flex; align-items:center; gap:6px;">
+                                ${icon("file-text")} Request Permit Upload from Applicant
+                              </button>
                             </div>
                           `
                           }
@@ -3981,6 +4209,31 @@ document.addEventListener("click", async (event) => {
             <button type="button" class="button outline full" onclick="this.closest('dialog').close();">Cancel</button>
           </div>
         </form>`);
+    } else if (status === "request-permit") {
+      modal(`
+        <form id="admin-landlord-review-form">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+            <div style="width:40px; height:40px; border-radius:50%; background:rgba(239,68,68,0.1); color:var(--danger); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              ${icon("file-text")}
+            </div>
+            <div>
+              <h3 style="margin:0 0 2px; font-size:1.15rem; font-weight:800; color:var(--text-main);">Request Mayor's Permit Upload</h3>
+              <span style="font-size:0.75rem; color:var(--text-secondary);">Direct applicant to attach their official scan</span>
+            </div>
+          </div>
+          <input type="hidden" name="uid" value="${e(uid)}">
+          <input type="hidden" name="reviewStatus" value="changes_requested">
+          <label>Missing required item
+            <input name="missingItems" required maxlength="300" value="mayorsPermitUrl" readonly style="background:var(--bg-subtle); font-family:monospace; font-size:0.8125rem;">
+          </label>
+          <label style="margin-top:12px;">Instructions for the applicant
+            <textarea name="reviewNotes" required maxlength="1000" rows="4">Please log in to your DormPath profile and upload a clear photo or scan of your official Tuguegarao City or Peñablanca Mayor's Permit document so our administrators can inspect and approve your listings.</textarea>
+          </label>
+          <div style="display:flex; gap:10px; margin-top:16px;">
+            <button class="button primary full" type="submit">Send Upload Request</button>
+            <button type="button" class="button outline full" onclick="this.closest('dialog').close();">Cancel</button>
+          </div>
+        </form>`);
     } else {
       modal(`
         <form id="admin-landlord-review-form">
@@ -4158,6 +4411,47 @@ document.addEventListener("click", async (event) => {
     } catch (err) {
       toast(err.message);
     }
+    return;
+  }
+
+  // Room Inquiry directly into chat
+  if (el.dataset.inquireRoom) {
+    try {
+      const propId = el.dataset.inquireProperty;
+      const roomName = el.dataset.inquireRoom;
+      const p = await api.getProperty(propId);
+      const convId = await api.startConversation(p);
+      location.hash = `/messages/${convId}`;
+      setTimeout(() => {
+        const inp = $("#message-form textarea[name=text]") || $("#message-form input[name=text]");
+        if (inp) {
+          inp.value = `Hello! I would like to inquire about the vacancy and move-in terms for "${roomName}" at ${p.title}. Is it currently available for viewing? Thank you!`;
+          inp.focus();
+        }
+      }, 400);
+    } catch (err) {
+      toast(err.message);
+    }
+    return;
+  }
+
+  // Full-size Photo Preview Lightbox
+  if (el.dataset.previewPhoto) {
+    const url = el.dataset.previewPhoto;
+    modal(`
+      <div style="text-align:center; padding:4px 0;">
+        <img src="${e(url)}" alt="Full resolution view" style="max-width:100%; max-height:80vh; object-fit:contain; border-radius:var(--radius-md); box-shadow:var(--shadow-xl); background:#0f172a; margin:0 auto; display:block;" />
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; flex-wrap:wrap; gap:10px;">
+          <a href="${e(url)}" target="_blank" rel="noopener noreferrer" class="button outline small" style="display:inline-flex; align-items:center; gap:6px;">
+            ${icon("external-link")} Open Original Image
+          </a>
+          <button type="button" class="button primary small" onclick="this.closest('dialog').close();">
+            Close Preview
+          </button>
+        </div>
+      </div>
+    `);
+    refreshIcons();
     return;
   }
 
@@ -5064,6 +5358,46 @@ document.addEventListener("change", (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       openPhotoCropper(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Mayor's Permit Document Instant Preview
+  if (event.target.id === "mayors-permit-file-input") {
+    const file = event.target.files?.[0];
+    const previewContainer = $("#mayors-permit-live-preview");
+    const currentBadge = $("#mayors-permit-current-badge");
+    if (!previewContainer) return;
+    if (!file) {
+      previewContainer.style.display = "none";
+      previewContainer.innerHTML = "";
+      if (currentBadge) currentBadge.style.display = "flex";
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast("Please select an image scan of your Mayor's permit (JPEG, PNG, or WebP).");
+      event.target.value = "";
+      previewContainer.style.display = "none";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (currentBadge) currentBadge.style.display = "none";
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      previewContainer.style.display = "block";
+      previewContainer.innerHTML = `
+        <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:rgba(37,99,235,0.06); border:1.5px solid var(--primary); border-radius:var(--radius-md);">
+          <img src="${e.target.result}" alt="Preview" style="width:64px; height:64px; object-fit:cover; border-radius:var(--radius-sm); border:1px solid var(--border); box-shadow:var(--shadow-sm); cursor:pointer;" data-preview-photo="${e.target.result}" title="Click to view full preview" />
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:0.875rem; color:var(--primary); display:flex; align-items:center; gap:6px;">
+              ${icon("check-circle-2")} Selected Document Ready to Submit
+            </div>
+            <div style="font-size:0.8125rem; color:var(--text-main); font-weight:600; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; margin:2px 0;">${file.name}</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">${sizeMb} MB · Click "Update and resubmit" below to finalize</div>
+          </div>
+        </div>
+      `;
+      refreshIcons();
     };
     reader.readAsDataURL(file);
   }

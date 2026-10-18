@@ -5,24 +5,7 @@
      Dark Navy: #101828, Light Background: #F8FAFC, Surface: #FFFFFF
      Border: #E6EAF0, Secondary: #667085, Success: #12B76A, Error: #F04438
    Typography: Plus Jakarta Sans
-/* Suppress Netlify Injected Collaboration Drawer / Feedback Badge */
-#netlify-drawer,
-iframe#netlify-drawer,
-iframe[src*="netlify"],
-[data-netlify-deploy-preview],
-.netlify-badge,
-netlify-drawer {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  position: absolute !important;
-  left: -9999px !important;
-  bottom: -9999px !important;
-  width: 0 !important;
-  height: 0 !important;
-  z-index: -9999 !important;
-}
+   ============================================================================== */
 
 :root {
   /* Colors */
@@ -5095,6 +5078,377 @@ body[data-page="map"] .public-layout #main { height:calc(100dvh - 73px) !importa
 [data-theme="dark"] .hero-search-field input,
 [data-theme="dark"] .hero-search-field select {
   color: #ffffff;
+}
+
+/* ==============================================================================
+   PROPERTY DETAILS & ROOM INVENTORY DESIGN SYSTEM
+   ============================================================================== */
+.detail-container {
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+.detail-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* High-End Gallery Grid (Airbnb/Zillow Style) */
+.detail-gallery {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 14px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  height: 420px;
+  margin-bottom: 32px;
+  position: relative;
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-md);
+}
+
+.detail-gallery.single-photo {
+  grid-template-columns: 1fr;
+  height: 440px;
+}
+
+.detail-gallery.two-photos {
+  grid-template-columns: 1fr 1fr;
+}
+
+.gallery-hero-wrapper {
+  height: 100%;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.gallery-main-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s var(--ease);
+  display: block;
+}
+
+.gallery-hero-wrapper:hover .gallery-main-img {
+  transform: scale(1.025);
+}
+
+.gallery-sub-grid {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 14px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.gallery-sub-wrapper {
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  height: 100%;
+}
+
+.gallery-sub-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s var(--ease);
+  display: block;
+}
+
+.gallery-sub-wrapper:hover .gallery-sub-img {
+  transform: scale(1.04);
+}
+
+.gallery-count-badge {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.gallery-empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-xl);
+  height: 100%;
+  text-align: center;
+  padding: 32px;
+}
+
+/* Two-column responsive layout */
+.detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 36px;
+  align-items: start;
+}
+
+.detail-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-xs);
+}
+
+/* Move-in & Lease Terms Card */
+.move-in-terms-card {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.04) 0%, rgba(139, 92, 246, 0.04) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  margin-top: 24px;
+}
+
+.move-in-terms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.move-in-term-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.term-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.term-val {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Amenity Chips with Lucide Icons */
+.amenity-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.amenity-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main);
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.amenity-chip:hover {
+  border-color: var(--primary);
+  background: var(--bg-surface);
+  transform: translateY(-1px);
+}
+
+.amenity-chip .chip-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* Room Inventory Card List */
+.room-inventory-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.room-inventory-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.room-inventory-card:hover {
+  background: var(--bg-surface);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.room-avail-meter {
+  width: 140px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.room-avail-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Campus & Landmark Proximity Grid */
+.landmark-proximity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.landmark-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.landmark-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xs);
+  border-color: var(--primary);
+}
+
+.landmark-card.nearest {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.04);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+/* Sticky Right Inquiry Sidebar */
+.sticky-inquiry-card {
+  position: sticky;
+  top: 92px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 960px) {
+  .detail-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .sticky-inquiry-card {
+    position: static;
+    order: -1;
+    margin-bottom: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .detail-gallery {
+    grid-template-columns: 1fr;
+    height: 280px;
+    border-radius: var(--radius-lg);
+  }
+  .gallery-sub-grid {
+    display: none;
+  }
+  .detail-section {
+    padding: 20px 16px;
+    border-radius: var(--radius-lg);
+  }
+  .room-inventory-card {
+    padding: 16px;
+  }
+  .amenity-chip-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .detail-section {
+  background: #141e30;
+  border-color: #253650;
+}
+
+[data-theme="dark"] .sticky-inquiry-card {
+  background: #141e30;
+  border-color: #253650;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .room-inventory-card {
+  background: #0f172a;
+  border-color: #24344d;
+}
+
+[data-theme="dark"] .room-inventory-card:hover {
+  background: #17243b;
+  border-color: #3b82f6;
+}
+
+[data-theme="dark"] .amenity-chip {
+  background: #0f172a;
+  border-color: #24344d;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .amenity-chip:hover {
+  background: #17243b;
+  border-color: #3b82f6;
+}
+
+[data-theme="dark"] .move-in-terms-card {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+[data-theme="dark"] .landmark-card {
+  background: #0f172a;
+  border-color: #24344d;
+}
+
+[data-theme="dark"] .landmark-card.nearest {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: #3b82f6;
 }
 
 

@@ -521,9 +521,14 @@ export async function saveRoom(propertyId, room, id = null) {
   const roomRef = id ? doc(db, "rooms", id) : doc(collection(db, "rooms"));
   const propRef = doc(db, "properties", propertyId);
   await runTransaction(db, async (tx) => {
-    const [p, old] = await Promise.all([tx.get(propRef), tx.get(roomRef)]);
+    // Only read the room when editing an existing one. Reading a document that
+    // does not exist yet is denied by the rooms read rule (resource is null).
+    const [p, old] = await Promise.all([
+      tx.get(propRef),
+      id ? tx.get(roomRef) : Promise.resolve(null),
+    ]);
     if (!p.exists()) throw Error("Property not found.");
-    const previous = old.data() || { available: 0, capacity: 0 };
+    const previous = old?.exists() ? old.data() : { available: 0, capacity: 0 };
     tx.set(roomRef, {
       ...room,
       propertyId,
