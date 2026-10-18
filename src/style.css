@@ -3787,7 +3787,7 @@ body[data-page="messages"] .app-main-content {
 .admin-search-box {
   position: relative;
   flex: 1;
-  min-width: 260px;
+  min-width: 0;
   max-width: 420px;
 }
 
@@ -3799,6 +3799,7 @@ body[data-page="messages"] .app-main-content {
   border: 1px solid var(--border);
   background: var(--bg-surface);
   transition: all var(--duration-fast);
+  box-sizing: border-box;
 }
 
 .admin-search-input:focus {
@@ -3821,6 +3822,7 @@ body[data-page="messages"] .app-main-content {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  max-width: 100%;
 }
 
 .admin-filter-chip {
@@ -3858,6 +3860,10 @@ body[data-page="messages"] .app-main-content {
   margin-bottom: 10px;
   transition: all var(--duration-fast);
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .admin-user-card:hover {
