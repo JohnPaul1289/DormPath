@@ -125,6 +125,17 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
+}
+
+#app {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 a {
@@ -1455,6 +1466,10 @@ label.check input[type="checkbox"] {
 .app-shell {
   min-height: 100vh;
   display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Desktop Sidebar — 3D Tactile Aesthetic */
@@ -1693,7 +1708,7 @@ label.check input[type="checkbox"] {
 .app-main-content {
   flex: 1;
   padding: 32px;
-  max-width: var(--max-content);
+  max-width: 100%;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -3700,6 +3715,9 @@ body[data-page="messages"] .app-main-content {
    ============================================================================== */
 .admin-shell {
   max-width: 1100px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 8px 0 40px;
 }
@@ -5019,7 +5037,7 @@ p { line-height:1.65; }
 .sidebar-link { font-size:.9375rem; min-height:46px; }
 .sidebar-profile-pill { border-radius:14px; }
 .app-topbar-left { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
-.app-main-content { max-width:1440px; margin-inline:auto; width:100%; min-width:0; box-sizing:border-box; padding:32px; }
+.app-main-content { max-width:100%; margin-inline:auto; width:100%; min-width:0; box-sizing:border-box; padding:32px; }
 .card,.detail-section { background:var(--bg-surface); border:1px solid var(--border); box-shadow:0 2px 8px #0f172a04; }
 .notice { padding:14px 18px; border:1px solid var(--border); border-left:3px solid var(--primary); border-radius:12px; background:var(--bg-surface); color:var(--text-secondary); font-size:.875rem; line-height:1.6; margin-block:16px; word-break:break-word; }
 .admin-shell { max-width:1240px; margin-inline:auto; width:100%; min-width:0; box-sizing:border-box; }
