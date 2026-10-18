@@ -3260,84 +3260,113 @@ async function adminPage(tab = "users") {
     <div class="admin-shell">
       <div class="admin-header">
         <div class="admin-title-area">
-          <div class="overline">PLATFORM GOVERNANCE</div>
-          <h2>${icon("shield-check")} Administrator Console</h2>
-          <p style="color:var(--text-secondary); font-size:0.875rem; margin-top:4px;">
+          <div class="admin-badge-top">
+            <span class="admin-pulse-dot"></span>
+            <span>PLATFORM GOVERNANCE</span>
+          </div>
+          <h2 class="admin-main-heading">
+            <span class="admin-heading-icon-wrap">${icon("shield-check")}</span>
+            <span>Administrator Console</span>
+          </h2>
+          <p class="admin-subtitle">
             Supervise user identities, manage verified property owners, and resolve community safety inquiries.
           </p>
         </div>
       </div>
 
-      <div class="notice">Showing up to 100 records per tab. Counts describe loaded records, not platform totals. Verify ownership evidence before granting an owner badge.</div>
+      <div class="admin-notice-banner">
+        <div class="admin-notice-icon-box">
+          ${icon("info")}
+        </div>
+        <div class="admin-notice-content">
+          <div class="admin-notice-title">Active Management Scope & Protocols</div>
+          <div class="admin-notice-text">
+            Showing up to 100 records per tab. Counts describe loaded records, not platform totals. Verify ownership evidence before granting an owner badge.
+          </div>
+        </div>
+      </div>
+
       <!-- Admin Top KPI Dashboard -->
       <div class="admin-kpi-grid">
-        <div class="card admin-kpi-card">
-          <div class="admin-kpi-icon" style="background:rgba(37,99,235,0.1); color:var(--brand-primary);">
+        <div class="card admin-kpi-card kpi-users">
+          <div class="admin-kpi-icon icon-users">
             ${icon("users")}
           </div>
           <div class="admin-kpi-body">
             <div class="admin-kpi-label">User Accounts (loaded)</div>
             <div class="admin-kpi-val">${tab === "users" ? data.length : "—"}</div>
+            <div class="admin-kpi-subtext">Registered profiles</div>
           </div>
         </div>
 
-        <div class="card admin-kpi-card">
-          <div class="admin-kpi-icon" style="background:rgba(16,185,129,0.1); color:var(--success);">
+        <div class="card admin-kpi-card kpi-listings">
+          <div class="admin-kpi-icon icon-listings">
             ${icon("building-2")}
           </div>
           <div class="admin-kpi-body">
             <div class="admin-kpi-label">Published listings loaded</div>
             <div class="admin-kpi-val">${state.properties?.length || 0}</div>
+            <div class="admin-kpi-subtext">Live on directory</div>
           </div>
         </div>
 
-        <div class="card admin-kpi-card">
-          <div class="admin-kpi-icon" style="background:rgba(245,158,11,0.1); color:#d97706;">
+        <div class="card admin-kpi-card kpi-permits">
+          <div class="admin-kpi-icon icon-permits">
             ${icon("badge-check")}
           </div>
           <div class="admin-kpi-body">
             <div class="admin-kpi-label">Direct Landlord Listings</div>
             <div class="admin-kpi-val">Admin Review</div>
+            <div class="admin-kpi-subtext">Compliance queue</div>
           </div>
         </div>
 
-        <div class="card admin-kpi-card">
-          <div class="admin-kpi-icon" style="background:rgba(239,68,68,0.1); color:var(--danger);">
+        <div class="card admin-kpi-card kpi-safety">
+          <div class="admin-kpi-icon icon-safety">
             ${icon("flag")}
           </div>
           <div class="admin-kpi-body">
             <div class="admin-kpi-label">Safety Center</div>
             <div class="admin-kpi-val">${tab === "reports" ? data.length : "—"}</div>
+            <div class="admin-kpi-subtext">Community reports</div>
           </div>
         </div>
       </div>
 
       <!-- Admin Tabs Navigation -->
-      <div class="admin-tabs-nav">
-        <a href="#/admin/users" class="admin-tab-link ${tab === "users" ? "active" : ""}">
-          ${icon("users")} User Accounts
-          <span class="admin-tab-count">${tab === "users" ? data.length : "•"}</span>
-        </a>
-        <a href="#/admin/landlordApplications" class="admin-tab-link ${tab === "landlordApplications" ? "active" : ""}">
-          ${icon("badge-check")} Permit Reviews
-          <span class="admin-tab-count">${tab === "landlordApplications" ? data.length : "•"}</span>
-        </a>
-        <a href="#/admin/properties" class="admin-tab-link ${tab === "properties" ? "active" : ""}">
-          ${icon("building-2")} Property Listings
-          <span class="admin-tab-count">${tab === "properties" ? data.length : "•"}</span>
-        </a>
-        <a href="#/admin/reports" class="admin-tab-link ${tab === "reports" ? "active" : ""}">
-          ${icon("flag")} Safety Reports
-          <span class="admin-tab-count">${tab === "reports" ? data.length : "•"}</span>
-        </a>
-        <a href="#/admin/feedback" class="admin-tab-link ${tab === "feedback" ? "active" : ""}">
-          ${icon("lightbulb")} Suggestions & Fixes
-          <span class="admin-tab-count">${tab === "feedback" ? data.length : "•"}</span>
-        </a>
-        <a href="#/admin/auditLogs" class="admin-tab-link ${tab === "auditLogs" ? "active" : ""}">
-          ${icon("file-text")} Audit Trail
-          <span class="admin-tab-count">${tab === "auditLogs" ? data.length : "•"}</span>
-        </a>
+      <div class="admin-tabs-nav-track">
+        <div class="admin-tabs-nav">
+          <a href="#/admin/users" class="admin-tab-link ${tab === "users" ? "active" : ""}">
+            <span class="admin-tab-icon">${icon("users")}</span>
+            <span class="admin-tab-label">User Accounts</span>
+            <span class="admin-tab-count">${tab === "users" ? data.length : "•"}</span>
+          </a>
+          <a href="#/admin/landlordApplications" class="admin-tab-link ${tab === "landlordApplications" ? "active" : ""}">
+            <span class="admin-tab-icon">${icon("badge-check")}</span>
+            <span class="admin-tab-label">Permit Reviews</span>
+            <span class="admin-tab-count">${tab === "landlordApplications" ? data.length : "•"}</span>
+          </a>
+          <a href="#/admin/properties" class="admin-tab-link ${tab === "properties" ? "active" : ""}">
+            <span class="admin-tab-icon">${icon("building-2")}</span>
+            <span class="admin-tab-label">Property Listings</span>
+            <span class="admin-tab-count">${tab === "properties" ? data.length : "•"}</span>
+          </a>
+          <a href="#/admin/reports" class="admin-tab-link ${tab === "reports" ? "active" : ""}">
+            <span class="admin-tab-icon">${icon("flag")}</span>
+            <span class="admin-tab-label">Safety Reports</span>
+            <span class="admin-tab-count">${tab === "reports" ? data.length : "•"}</span>
+          </a>
+          <a href="#/admin/feedback" class="admin-tab-link ${tab === "feedback" ? "active" : ""}">
+            <span class="admin-tab-icon">${icon("lightbulb")}</span>
+            <span class="admin-tab-label">Suggestions & Fixes</span>
+            <span class="admin-tab-count">${tab === "feedback" ? data.length : "•"}</span>
+          </a>
+          <a href="#/admin/auditLogs" class="admin-tab-link ${tab === "auditLogs" ? "active" : ""}">
+            <span class="admin-tab-icon">${icon("file-text")}</span>
+            <span class="admin-tab-label">Audit Trail</span>
+            <span class="admin-tab-count">${tab === "auditLogs" ? data.length : "•"}</span>
+          </a>
+        </div>
       </div>
 
       <!-- Tab Content: Users -->
@@ -3347,7 +3376,7 @@ async function adminPage(tab = "users") {
         <div class="admin-toolbar">
           <div class="admin-search-box">
             <span class="admin-search-icon">${icon("search")}</span>
-            <input type="text" id="admin-user-search" class="admin-search-input" placeholder="Search user by name or ID...">
+            <input type="text" id="admin-user-search" class="admin-search-input" placeholder="Search user by name, email, or UID...">
           </div>
           <div class="admin-filter-pills">
             <button type="button" class="admin-filter-chip active" data-user-filter="all">All (${data.length})</button>
@@ -3370,13 +3399,16 @@ async function adminPage(tab = "users") {
                     return `
                 <div class="admin-user-card ${r.disabled ? "is-suspended" : ""}" data-role="${e(r.role || "user")}" data-verified="${r.verified ? "true" : "false"}" data-disabled="${r.disabled ? "true" : "false"}">
                   <div class="admin-user-profile">
-                    <div class="admin-avatar ${isLandlord ? "landlord" : "tenant"}">
-                      ${r.photoURL ? `<img src="${e(r.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="User">` : initial}
+                    <div class="admin-avatar-wrap">
+                      <div class="admin-avatar ${isLandlord ? "landlord" : "tenant"}">
+                        ${r.photoURL ? `<img src="${e(r.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="User">` : initial}
+                      </div>
+                      <span class="admin-avatar-pip ${r.disabled ? "pip-suspended" : "pip-active"}" title="${r.disabled ? "Suspended" : "Active"}"></span>
                     </div>
                     <div class="admin-user-details">
                       <div class="admin-user-name">
-                        <span>${e(r.name || "Unnamed User")}</span>
-                        ${isSelf ? `<span class="admin-badge badge-you">Current Admin (You)</span>` : ""}
+                        <span class="admin-user-name-text">${e(r.name || "Unnamed User")}</span>
+                        ${isSelf ? `<span class="admin-badge badge-you">${icon("shield")} Current Admin (You)</span>` : ""}
                       </div>
                       <div class="admin-user-meta">
                         ${
@@ -3396,36 +3428,36 @@ async function adminPage(tab = "users") {
                             ? `<span class="admin-badge badge-suspended">${icon("ban")} Suspended</span>`
                             : `<span class="admin-badge badge-active">${icon("check")} Active</span>`
                         }
-                        <span style="font-size:0.75rem; color:var(--text-muted);">UID: ${e(r.id.slice(0, 10))}...</span>
+                        <span class="admin-uid-tag"><code>UID: ${e(r.id.slice(0, 10))}...</code></span>
                       </div>
                     </div>
                   </div>
 
-                  <div class="admin-actions-group">
+                  <div class="admin-actions-group admin-actions-suite">
                     ${
                       isLandlord
-                        ? `<button type="button" class="button outline small" data-set-role="${r.id}:tenant" title="Switch role to Tenant">
-                            ${icon("user")} Set Tenant
+                        ? `<button type="button" class="btn-role-action btn-role-demote" data-set-role="${r.id}:tenant" title="Switch role to Tenant">
+                            ${icon("user")} <span>Set Tenant</span>
                            </button>`
-                        : `<button type="button" class="button outline small btn-verify-success" data-set-role="${r.id}:landlord" title="Promote role to Landlord">
-                            ${icon("building-2")} Set Landlord
+                        : `<button type="button" class="btn-role-action btn-role-promote" data-set-role="${r.id}:landlord" title="Promote role to Landlord">
+                            ${icon("building-2")} <span>Set Landlord</span>
                            </button>`
                     }
                     ${
                       isLandlord && r.verified
-                        ? `<button class="button outline small" style="color:var(--text-secondary);" data-verify="${r.id}:false" title="Revoke verified owner badge">
-                            Revoke Badge
+                        ? `<button type="button" class="btn-badge-action" data-verify="${r.id}:false" title="Revoke verified owner badge">
+                            ${icon("shield")} <span>Revoke Badge</span>
                           </button>`
                         : ""
                     }
                     ${
                       !isSelf
                         ? r.disabled
-                          ? `<button class="button outline small btn-restore" data-suspend="${r.id}:false">
-                              ${icon("check")} Restore
+                          ? `<button type="button" class="btn-suspend-action btn-restore-action" data-suspend="${r.id}:false" title="Restore account access">
+                              ${icon("check")} <span>Restore</span>
                             </button>`
-                          : `<button class="button outline small btn-danger-outline" data-suspend="${r.id}:true">
-                              ${icon("ban")} Suspend
+                          : `<button type="button" class="btn-suspend-action btn-danger-action" data-suspend="${r.id}:true" title="Suspend user account">
+                              ${icon("ban")} <span>Suspend</span>
                             </button>`
                         : ""
                     }
