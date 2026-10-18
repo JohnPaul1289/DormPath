@@ -5,7 +5,24 @@
      Dark Navy: #101828, Light Background: #F8FAFC, Surface: #FFFFFF
      Border: #E6EAF0, Secondary: #667085, Success: #12B76A, Error: #F04438
    Typography: Plus Jakarta Sans
-   ============================================================================== */
+/* Suppress Netlify Injected Collaboration Drawer / Feedback Badge */
+#netlify-drawer,
+iframe#netlify-drawer,
+iframe[src*="netlify"],
+[data-netlify-deploy-preview],
+.netlify-badge,
+netlify-drawer {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  left: -9999px !important;
+  bottom: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  z-index: -9999 !important;
+}
 
 :root {
   /* Colors */
