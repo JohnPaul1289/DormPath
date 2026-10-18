@@ -100,3 +100,20 @@ test("upload rejects tenants even when their email is verified", async () => {
   });
 });
 
+test("upload allows tenants to upload profile avatars with avatar scope", async () => {
+  await withUploadEnv(async (url) => {
+    if (String(url).includes("accounts:lookup")) return Response.json({ users: [{ localId: "u1", emailVerified: true }] });
+    return Response.json({ fields: { role: { stringValue: "tenant" }, verified: { booleanValue: false }, disabled: { booleanValue: false } } });
+  }, async () => {
+    const r = await handler(new Request("https://example.test/.netlify/functions/upload", {
+      method: "POST",
+      headers: { Authorization: "Bearer token", "Content-Type": "application/json" },
+      body: JSON.stringify({ resourceType: "image", scope: "avatar" }),
+    }));
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.ok(data.signature);
+    assert.equal(data.resourceType, "image");
+  });
+});
+

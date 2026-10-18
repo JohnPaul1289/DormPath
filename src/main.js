@@ -742,12 +742,9 @@ function appLayout(content) {
     ).length || 0;
 
   const isLandlord = api.profile?.role === "landlord";
-  const isLandlordApplicant = !isLandlord && (state.landlordApp?.status === "submitted" || state.landlordApp?.status === "changes_requested");
   const roleLabel = isLandlord
     ? (api.profile?.verified ? "Permit-Approved Landlord" : "Landlord (Permit Pending)")
-    : isLandlordApplicant
-      ? "Landlord Applicant (Under Review)"
-      : "Tenant";
+    : "Tenant";
 
   return `
     <div class="app-shell">
@@ -785,32 +782,7 @@ function appLayout(content) {
             ${navItem("domi", "Ask DOMI", "bot")}
           </div>
         `
-            : isLandlordApplicant
-              ? `
-          <div class="sidebar-nav-group">
-            <div class="sidebar-caption">LANDLORD APPLICANT</div>
-            ${navItem("profile", "Permit Review Status", "badge-check")}
-            <a href="#/messages" class="sidebar-link ${current === "messages" ? "active" : ""}">
-              <div class="sidebar-link-left">
-                ${icon("messages-square")}
-                <span>Inquiries & Chat</span>
-              </div>
-              ${unreadMessages > 0 ? `<span class="sidebar-badge-count">${unreadMessages}</span>` : ""}
-            </a>
-            ${navItem("dashboard", "Dashboard", "layout-dashboard")}
-            ${navItem("profile", "Profile & Settings", "user")}
-            ${navItem("feedback", "Suggestions & Fixes", "lightbulb")}
-            ${api.isAdmin ? navItem("admin", "Admin Console", "shield-check") : ""}
-          </div>
-
-          <div class="sidebar-nav-group">
-            <div class="sidebar-caption">FIND HOUSING</div>
-            ${navItem("search", "Explore Rooms", "search")}
-            ${navItem("map", "Map Explorer", "map")}
-            ${navItem("domi", "Ask DOMI", "bot")}
-          </div>
-        `
-              : `
+            : `
           <div class="sidebar-nav-group">
             <div class="sidebar-caption">TENANT PORTAL</div>
             ${navItem("dashboard", "Dashboard", "layout-dashboard")}
@@ -889,7 +861,7 @@ function appLayout(content) {
           </div>
         </header>
 
-        ${isLandlord && !api.profile?.verified && !api.isAdmin ? `<div class="connection-banner" style="background:#fff7ed; color:#9a3412; border-color:#fdba74;">Landlord publishing is locked until an administrator approves every permit. <a href="#/profile" style="font-weight:800; color:inherit;">Review or complete your permit application</a>.</div>` : ""}
+        ${isLandlord && !api.profile?.verified && !api.isAdmin ? `<div class="connection-banner" style="background:var(--warning-subtle); color:var(--warning); border-color:var(--warning);">Landlord publishing is locked until an administrator approves every permit. <a href="#/profile" style="font-weight:800; color:inherit;">Review or complete your permit application</a>.</div>` : ""}
 
         ${
           !navigator.onLine
@@ -1964,7 +1936,7 @@ function searchPage(mapView = false) {
               </button>
             </div>
 
-            <a href="#/search" class="button outline small" style="background:var(--bg-surface); white-space:nowrap; border-radius:var(--radius-full); font-weight:700; height:34px; padding:0 12px; display:inline-flex; align-items:center; gap:6px;">
+            <a href="#/search" class="button outline small" style="background:var(--bg-surface); white-space:nowrap; border-radius:var(--radius-full); font-weight:700; height:34px; padding:0 12px; display:inline-flex; align-items:center; gap:6px; flex-shrink:0; margin-left:6px;">
               ${icon("layout-grid")} <span>Grid View</span>
             </a>
           </div>
@@ -2316,7 +2288,7 @@ async function profilePage() {
   const isTenant = api.profile?.role !== "landlord";
   const isLandlord = api.profile?.role === "landlord";
   const emailVerified = api.currentUser?.emailVerified;
-  const landlordApplication = await api.getLandlordApplication().catch(() => null);
+  const landlordApplication = isLandlord ? await api.getLandlordApplication().catch(() => null) : null;
 
   return `
     <div class="profile-shell">
@@ -2404,9 +2376,8 @@ async function profilePage() {
 
           <div style="margin:20px 0 16px; padding:12px 16px; background:var(--bg-subtle); border-radius:var(--radius-md); font-size:0.875rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
             <div>
-              Platform Role: <strong>${isLandlord ? (api.profile?.verified ? "Verified Landlord / Owner" : "Landlord (Permit Pending)") : (landlordApplication?.status === "submitted" || landlordApplication?.status === "changes_requested") ? "Landlord Applicant (Permit Review in Progress)" : "Tenant"}</strong>
+              Platform Role: <strong>${isLandlord ? (api.profile?.verified ? "Verified Landlord / Owner" : "Landlord (Permit Pending)") : "Tenant"}</strong>
               ${api.profile?.verified ? ` · <span class="admin-badge badge-verified">${icon("shield-check")} Verified Landlord</span>` : ""}
-              ${!api.profile?.verified && landlordApplication?.status === "submitted" ? ` · <span class="admin-badge badge-unverified">${icon("clock")} Application Submitted</span>` : ""}
               ${api.isAdmin ? ` · <span class="admin-badge badge-you">${icon("shield-check")} Administrator</span>` : ""}
             </div>
           </div>
@@ -2418,8 +2389,9 @@ async function profilePage() {
       </div>
 
       ${
-        api.profile?.verified || landlordApplication?.status === "approved"
-          ? `
+        isLandlord
+          ? (api.profile?.verified || landlordApplication?.status === "approved"
+              ? `
       <div class="profile-card" id="landlord-verification" style="border: 1px solid rgba(16, 185, 129, 0.35); background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.01) 100%);">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
           <div style="display:flex; align-items:center; gap:12px;">
@@ -2501,7 +2473,7 @@ async function profilePage() {
         ${
           landlordApplication
             ? `<div class="badge ${landlordApplication.status === "approved" ? "badge-success" : "badge-outline"}" style="margin-bottom:14px;">Status: ${e(String(landlordApplication.status || "submitted").replaceAll("_", " "))}</div>
-               ${landlordApplication.missingItems?.length ? `<div class="notice warning" style="margin-bottom:14px; border-radius:var(--radius-md); padding:12px 14px; background:#fffbeb; border:1px solid #fde68a; color:#92400e;"><strong>Action Required:</strong> Missing ${landlordApplication.missingItems.map(formatMissingItem).join(", ")}. ${e(landlordApplication.reviewNotes || "Please upload the requested scan below and resubmit.")}</div>` : ""}`
+               ${landlordApplication.missingItems?.length ? `<div class="notice warning" style="margin-bottom:14px;"><strong>Action Required:</strong> Missing ${landlordApplication.missingItems.map(formatMissingItem).join(", ")}. ${e(landlordApplication.reviewNotes || "Please upload the requested scan below and resubmit.")}</div>` : ""}`
             : ""
         }
         <form id="landlord-application-form">
@@ -2555,6 +2527,8 @@ async function profilePage() {
           <button class="button primary" type="submit">${landlordApplication ? "Update and resubmit" : "Submit for admin review"}</button>
         </form>
       </div>`
+            )
+          : ""
       }
 
       <!-- Security: Password Management -->
@@ -3435,15 +3409,6 @@ async function adminPage(tab = "users") {
 
                   <div class="admin-actions-group admin-actions-suite">
                     ${
-                      isLandlord
-                        ? `<button type="button" class="btn-role-action btn-role-demote" data-set-role="${r.id}:tenant" title="Switch role to Tenant">
-                            ${icon("user")} <span>Set Tenant</span>
-                           </button>`
-                        : `<button type="button" class="btn-role-action btn-role-promote" data-set-role="${r.id}:landlord" title="Promote role to Landlord">
-                            ${icon("building-2")} <span>Set Landlord</span>
-                           </button>`
-                    }
-                    ${
                       isLandlord && r.verified
                         ? `<button type="button" class="btn-badge-action" data-verify="${r.id}:false" title="Revoke verified owner badge">
                             ${icon("shield")} <span>Revoke Badge</span>
@@ -3569,8 +3534,8 @@ async function adminPage(tab = "users") {
                         </div>
                       </div>
 
-                      ${application.missingItems?.length ? `<div class="notice warning" style="margin-top:12px; border-radius:var(--radius-md); padding:12px 14px; background:#fffbeb; border:1px solid #fde68a; color:#92400e;"><strong>Requested Missing Document:</strong> ${application.missingItems.map(formatMissingItem).join(", ")}<div style="margin-top:4px; color:#78350f;">${e(application.reviewNotes || "")}</div></div>` : ""}
-                      ${application.reviewNotes && application.status === "rejected" ? `<div class="notice danger" style="margin-top:12px; background:rgba(239,68,68,0.08); color:var(--danger); border:1px solid rgba(239,68,68,0.3); padding:10px 14px; border-radius:var(--radius-md);"><strong>Decline Reason:</strong> ${e(application.reviewNotes)}</div>` : ""}
+                      ${application.missingItems?.length ? `<div class="notice warning" style="margin-top:12px;"><strong>Requested Missing Document:</strong> ${application.missingItems.map(formatMissingItem).join(", ")}<div style="margin-top:4px; opacity:0.9;">${e(application.reviewNotes || "")}</div></div>` : ""}
+                      ${application.reviewNotes && application.status === "rejected" ? `<div class="notice danger" style="margin-top:12px;"><strong>Decline Reason:</strong> ${e(application.reviewNotes)}</div>` : ""}
                     </article>`).join("")
                   : `<div class="detail-section"><p class="text-muted">No landlord permit applications submitted.</p></div>`
               }
@@ -4106,14 +4071,10 @@ async function route() {
     "feedback",
   ].includes(page) || (page === "map" && api.configured && navigator.onLine);
 
-  if (api.currentUser && !state.landlordApp) {
+  if (api.currentUser && !state.landlordApp && api.profile?.role === "landlord") {
     api.getLandlordApplication().then((app) => {
       if (app && !state.landlordApp) {
         state.landlordApp = app;
-        const applicantCaption = document.querySelector(".sidebar-caption");
-        if (applicantCaption && applicantCaption.textContent.includes("TENANT") && (app.status === "submitted" || app.status === "changes_requested")) {
-          render();
-        }
       }
     }).catch(() => {});
   }
@@ -4665,6 +4626,20 @@ async function mountMap() {
       route();
     });
   });
+
+  const floatingChips = $(".map3d-floating-chips");
+  if (floatingChips) {
+    const activeChip = floatingChips.querySelector(".map3d-filter-chip.active");
+    if (activeChip && typeof activeChip.scrollIntoView === "function") {
+      activeChip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+    floatingChips.addEventListener("wheel", (e) => {
+      if (e.deltaY) {
+        e.preventDefault();
+        floatingChips.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+  }
 }
 
 function formatDomiMessage(text) {
@@ -5162,16 +5137,9 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  // Admin Set User Role
+  // Admin Set User Role (Disabled - Roles are permanently set upon registration)
   if (el.dataset.setRole) {
-    const [uid, newRole] = el.dataset.setRole.split(":");
-    try {
-      await api.setUserRole(uid, newRole);
-      toast(`User role updated to ${newRole === "landlord" ? "Landlord / Owner" : "Tenant"}!`);
-      route();
-    } catch (err) {
-      toast(err.message);
-    }
+    toast("User roles are set upon registration and cannot be modified.");
     return;
   }
 
@@ -5607,7 +5575,7 @@ document.addEventListener("click", async (event) => {
                   <div class="notification-content" style="flex:1;">
                     <div class="notification-title" style="font-weight:700;">${e(n.title || n.message || "Notification")}</div>
                     ${n.body ? `<div class="notification-body" style="font-size:0.8125rem; color:var(--text-secondary); margin:4px 0 6px; line-height:1.4;">${e(n.body)}</div>` : ""}
-                    ${n.missingItems?.length ? `<div style="font-size:0.75rem; color:#b45309; background:#fef3c7; padding:4px 8px; border-radius:4px; margin-bottom:8px; display:inline-block;"><strong>Required:</strong> ${n.missingItems.map(formatMissingItem).join(", ")}</div>` : ""}
+                    ${n.missingItems?.length ? `<div style="font-size:0.75rem; color:var(--warning); background:var(--warning-subtle); border:1px solid rgba(245,158,11,0.3); padding:4px 8px; border-radius:4px; margin-bottom:8px; display:inline-block;"><strong>Required:</strong> ${n.missingItems.map(formatMissingItem).join(", ")}</div>` : ""}
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                       <div class="notification-time" style="font-size:0.6875rem; color:var(--text-muted);">${date(n.createdAt)}</div>
                       ${n.link ? `<a href="${e(n.link)}" class="button primary small" onclick="$('#modal')?.close();" style="padding:4px 10px; font-size:0.75rem; font-weight:700;">Go to Profile & Upload</a>` : ""}

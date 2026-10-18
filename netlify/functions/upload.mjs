@@ -80,8 +80,10 @@ export default async function handler(request) {
         403,
       );
 
-    const isBinaryChatScope = request.headers.get("x-upload-scope") === "chat";
-    const isBinaryPermitScope = request.headers.get("x-upload-scope") === "permit";
+    const rawScope = (request.headers.get("x-upload-scope") || "").toLowerCase();
+    const isBinaryChatScope = rawScope === "chat";
+    const isBinaryPermitScope = rawScope === "permit";
+    const isBinaryAvatarScope = rawScope === "avatar" || rawScope === "profile";
 
     const timestamp = Math.floor(Date.now() / 1000);
     const public_id = `dormpath/${uid}/${randomUUID()}`;
@@ -89,14 +91,19 @@ export default async function handler(request) {
     // If client requested signature generation for direct progress upload:
     if (isJson) {
       const reqJson = await request.json().catch(() => ({}));
-      const isChatScope = reqJson?.scope === "chat" || isBinaryChatScope;
-      const isPermitScope = reqJson?.scope === "permit" || isBinaryPermitScope;
-      if (!isChatScope && !isPermitScope) {
+      const reqScope = (reqJson?.scope || "").toLowerCase();
+      const isChatScope = reqScope === "chat" || isBinaryChatScope;
+      const isPermitScope = reqScope === "permit" || isBinaryPermitScope;
+      const isAvatarScope = reqScope === "avatar" || reqScope === "profile" || isBinaryAvatarScope;
+      if (!isChatScope && !isPermitScope && !isAvatarScope) {
         if (!isLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
         if (reqJson.resourceType === "video" && !isVerifiedLandlord) return json({ error: "Only verified landlords can upload walkthrough videos." }, 403);
       }
       if (isPermitScope && (reqJson.resourceType === "video" || reqJson.resourceType === "audio" || isVideo || isAudio)) {
         return json({ error: "Permit documents must be image files." }, 400);
+      }
+      if (isAvatarScope && (reqJson.resourceType === "video" || reqJson.resourceType === "audio" || isVideo || isAudio)) {
+        return json({ error: "Profile photos must be image files." }, 400);
       }
       const resourceType = (reqJson.resourceType === "video" || reqJson.resourceType === "audio" || isVideo || isAudio) ? "video" : "image";
       const params = {
@@ -123,12 +130,15 @@ export default async function handler(request) {
       });
     }
 
-    if (!isBinaryChatScope && !isBinaryPermitScope) {
+    if (!isBinaryChatScope && !isBinaryPermitScope && !isBinaryAvatarScope) {
       if (!isLandlord) return json({ error: "Admin-approved landlords only can upload property media." }, 403);
       if (isVideo && !isVerifiedLandlord) return json({ error: "Only verified landlords can upload walkthrough videos." }, 403);
     }
     if (isBinaryPermitScope && (isVideo || isAudio)) {
       return json({ error: "Permit documents must be image files." }, 400);
+    }
+    if (isBinaryAvatarScope && (isVideo || isAudio)) {
+      return json({ error: "Profile photos must be image files." }, 400);
     }
 
     // Binary upload streaming

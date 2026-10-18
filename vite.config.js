@@ -41,8 +41,9 @@ export default defineConfig({
           "/domi.png",
           ...assets.map((name) => `/${name}`),
         ];
-        const entry =
-          assets.find((name) => name.startsWith("assets/index-")) || "v1";
+        const jsEntry = assets.find((name) => name.startsWith("assets/index-") && name.endsWith(".js")) || "main";
+        const cssEntry = assets.find((name) => name.startsWith("assets/index-") && name.endsWith(".css")) || "style";
+        const entry = `${Date.now().toString(36)}-${jsEntry}-${cssEntry}`;
         const source = readFileSync("public/sw.js", "utf8")
           .replace(/const CACHE = .*;/, `const CACHE = ${JSON.stringify(`dormpath-${entry}`)};`)
           .replace(

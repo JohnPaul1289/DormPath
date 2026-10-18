@@ -1147,7 +1147,7 @@ export async function uploadMedia(file, onProgress, scope = null) {
 }
 
 export async function uploadPhoto(file, onProgress) {
-  return uploadMedia(file, onProgress);
+  return uploadMedia(file, onProgress, "avatar");
 }
 
 export async function uploadChatMedia(file, onProgress) {
