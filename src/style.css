@@ -1610,6 +1610,10 @@ label.check input[type="checkbox"] {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .app-topbar {
@@ -1691,6 +1695,8 @@ label.check input[type="checkbox"] {
   padding: 32px;
   max-width: var(--max-content);
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
 }
 
@@ -2910,8 +2916,18 @@ body[data-page="messages"] .app-main-content {
     display: none;
   }
   .app-workspace {
-    margin-left: 0;
+    margin-left: 0 !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+  .app-main-content {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   body[data-page="messages"] .app-workspace {
     padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
@@ -4997,12 +5013,12 @@ p { line-height:1.65; }
 .sidebar-link { font-size:.9375rem; min-height:46px; }
 .sidebar-profile-pill { border-radius:14px; }
 .app-topbar-left { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
-.app-main-content { max-width:1440px; margin-inline:auto; width:100%; padding:32px; }
+.app-main-content { max-width:1440px; margin-inline:auto; width:100%; min-width:0; box-sizing:border-box; padding:32px; }
 .card,.detail-section { background:var(--bg-surface); border:1px solid var(--border); box-shadow:0 2px 8px #0f172a04; }
-.notice { padding:14px 18px; border:1px solid var(--border); border-left:3px solid var(--primary); border-radius:12px; background:var(--bg-surface); color:var(--text-secondary); font-size:.875rem; line-height:1.6; margin-block:16px; }
-.admin-shell { max-width:1240px; margin-inline:auto; }
-.admin-tabs-nav { gap:8px; overflow-x:auto; padding-bottom:12px; }
-.admin-tab-link { white-space:nowrap; }
+.notice { padding:14px 18px; border:1px solid var(--border); border-left:3px solid var(--primary); border-radius:12px; background:var(--bg-surface); color:var(--text-secondary); font-size:.875rem; line-height:1.6; margin-block:16px; word-break:break-word; }
+.admin-shell { max-width:1240px; margin-inline:auto; width:100%; min-width:0; box-sizing:border-box; }
+.admin-tabs-nav { gap:8px; overflow-x:auto; padding-bottom:12px; width:100%; max-width:100%; min-width:0; box-sizing:border-box; }
+.admin-tab-link { white-space:nowrap; flex-shrink:0; }
 .admin-user-card { box-shadow:0 2px 5px #0f172a03; }
 input::placeholder,textarea::placeholder { color:var(--text-muted); opacity:1; }
 .brand-text { font-family:"Segoe UI",system-ui,sans-serif; letter-spacing:-.055em; }
