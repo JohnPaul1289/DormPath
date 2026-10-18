@@ -883,11 +883,8 @@ function appLayout(content) {
             </button>
           </div>
           <div class="app-topbar-right" style="display:flex; align-items:center; gap:8px;">
-            <button type="button" class="button text-button" data-action="theme" aria-label="Toggle appearance" title="Toggle Dark/Light Mode">
+            <button type="button" class="button text-button mobile-only-theme-btn" data-action="theme" aria-label="Toggle appearance" title="Toggle Dark/Light Mode">
               ${icon("sun-moon")}
-            </button>
-            <button type="button" class="button outline small" data-action="logout" title="Log Out" style="color:var(--danger); border-color:rgba(239,68,68,0.3); font-weight:600; gap:6px;">
-              ${icon("log-out")} <span class="hide-mobile">Log Out</span>
             </button>
           </div>
         </header>
@@ -3273,44 +3270,44 @@ async function adminPage(tab = "users") {
 
       <div class="notice">Showing up to 100 records per tab. Counts describe loaded records, not platform totals. Verify ownership evidence before granting an owner badge.</div>
       <!-- Admin Top KPI Dashboard -->
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px;">
-        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
-          <div style="width:44px; height:44px; border-radius:10px; background:rgba(37,99,235,0.1); color:var(--brand-primary); display:flex; align-items:center; justify-content:center;">
+      <div class="admin-kpi-grid">
+        <div class="card admin-kpi-card">
+          <div class="admin-kpi-icon" style="background:rgba(37,99,235,0.1); color:var(--brand-primary);">
             ${icon("users")}
           </div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">User Accounts (loaded)</div>
-            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">${tab === "users" ? data.length : "—"}</div>
+          <div class="admin-kpi-body">
+            <div class="admin-kpi-label">User Accounts (loaded)</div>
+            <div class="admin-kpi-val">${tab === "users" ? data.length : "—"}</div>
           </div>
         </div>
 
-        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
-          <div style="width:44px; height:44px; border-radius:10px; background:rgba(16,185,129,0.1); color:var(--success); display:flex; align-items:center; justify-content:center;">
+        <div class="card admin-kpi-card">
+          <div class="admin-kpi-icon" style="background:rgba(16,185,129,0.1); color:var(--success);">
             ${icon("building-2")}
           </div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Published listings loaded</div>
-            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">${state.properties?.length || 0}</div>
+          <div class="admin-kpi-body">
+            <div class="admin-kpi-label">Published listings loaded</div>
+            <div class="admin-kpi-val">${state.properties?.length || 0}</div>
           </div>
         </div>
 
-        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
-          <div style="width:44px; height:44px; border-radius:10px; background:rgba(245,158,11,0.1); color:#d97706; display:flex; align-items:center; justify-content:center;">
+        <div class="card admin-kpi-card">
+          <div class="admin-kpi-icon" style="background:rgba(245,158,11,0.1); color:#d97706;">
             ${icon("badge-check")}
           </div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Direct Landlord Listings</div>
-            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">Admin Review</div>
+          <div class="admin-kpi-body">
+            <div class="admin-kpi-label">Direct Landlord Listings</div>
+            <div class="admin-kpi-val">Admin Review</div>
           </div>
         </div>
 
-        <div class="card" style="padding:16px; border-radius:var(--radius-md); display:flex; align-items:center; gap:14px;">
-          <div style="width:44px; height:44px; border-radius:10px; background:rgba(239,68,68,0.1); color:var(--danger); display:flex; align-items:center; justify-content:center;">
+        <div class="card admin-kpi-card">
+          <div class="admin-kpi-icon" style="background:rgba(239,68,68,0.1); color:var(--danger);">
             ${icon("flag")}
           </div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Safety Center</div>
-            <div style="font-size:1.375rem; font-weight:800; color:var(--text-main);">${tab === "reports" ? data.length : "—"}</div>
+          <div class="admin-kpi-body">
+            <div class="admin-kpi-label">Safety Center</div>
+            <div class="admin-kpi-val">${tab === "reports" ? data.length : "—"}</div>
           </div>
         </div>
       </div>
@@ -3450,7 +3447,7 @@ async function adminPage(tab = "users") {
               ${
                 data.length
                   ? data.map((application) => `
-                    <article class="detail-section" style="margin:0; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px;">
+                    <article class="admin-permit-card detail-section">
                       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:14px;">
                         <div>
                           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -3464,7 +3461,7 @@ async function adminPage(tab = "users") {
                           </div>
                         </div>
 
-                        <div class="admin-actions-group" style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <div class="admin-actions-group">
                           ${
                             application.status !== "rejected"
                               ? `<button class="button outline small btn-danger-outline" data-review-landlord="${e(application.id)}:rejected" style="color:var(--danger); border-color:rgba(239,68,68,0.3);">
@@ -3486,7 +3483,7 @@ async function adminPage(tab = "users") {
                       </div>
 
                       <!-- Document Match Inspection Grid -->
-                      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px; padding-top:16px; border-top:1px solid var(--border-light);">
+                      <div class="admin-inspection-grid">
                         <div style="background:var(--bg-surface); padding:14px; border:1px solid var(--border-light); border-radius:var(--radius-md);">
                           <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom:10px;">
                             1. Submitted Permit Details
@@ -3624,7 +3621,7 @@ async function adminPage(tab = "users") {
             data.length
               ? data
                   .map((rep) => `
-                <div class="admin-prop-card" style="grid-template-columns:1fr auto;">
+                <div class="admin-prop-card admin-report-card">
                   <div>
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                       <span class="admin-badge badge-suspended">${icon("flag")} Report</span>
@@ -3725,14 +3722,14 @@ async function adminPage(tab = "users") {
             data.length
               ? data
                   .map((log) => `
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border-light); font-size:0.8125rem;">
-                  <div>
+                <div class="admin-audit-row">
+                  <div style="min-width:0; flex:1;">
                     <strong>${e(log.collection || "resource")}:${e(log.targetId || "")}</strong>
-                    <div style="color:var(--text-secondary);">
+                    <div style="color:var(--text-secondary); word-break:break-all; overflow-wrap:anywhere;">
                       Action: ${e(JSON.stringify(log.changes || {}))}
                     </div>
                   </div>
-                  <div style="color:var(--text-muted); text-align:right;">
+                  <div style="color:var(--text-muted); text-align:right; flex-shrink:0;">
                     Actor: ${e((log.actorId || "").slice(0, 8))}...
                   </div>
                 </div>
@@ -3965,10 +3962,11 @@ function modal(content, options = {}) {
   const m = $("#modal");
   if (!m) return;
   const isLightbox = options.lightbox || (typeof content === "string" && content.includes("photo-lightbox-modal"));
-  m.className = isLightbox ? "modal-lightbox-dialog" : "";
+  const isDrawer = options.drawer || (typeof content === "string" && content.includes("mobile-drawer-sheet"));
+  m.className = isLightbox ? "modal-lightbox-dialog" : (isDrawer ? "modal-drawer-dialog" : "");
   m.innerHTML = `
-    <div class="modal-box ${isLightbox ? "modal-box-lightbox" : ""}">
-      ${!isLightbox ? `
+    <div class="modal-box ${isLightbox ? "modal-box-lightbox" : ""} ${isDrawer ? "modal-box-drawer" : ""}">
+      ${!isLightbox && !isDrawer ? `
         <button class="modal-close-btn" data-action="close-modal" aria-label="Close dialog">
           ${icon("x")}
         </button>
@@ -5603,9 +5601,10 @@ document.addEventListener("click", async (event) => {
       const isLandlord = api.profile?.role === "landlord";
       const roleLabel = isLandlord ? "Landlord / Owner" : "User / Tenant";
       modal(`
-        <div style="padding:4px 0;">
-          <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--border-light);">
-            <div class="sidebar-avatar" style="width:48px; height:48px; font-size:1.25rem;">
+        <div class="mobile-drawer-sheet">
+          <div class="drawer-drag-pill"></div>
+          <div class="drawer-user-header">
+            <div class="sidebar-avatar" style="width:44px; height:44px; font-size:1.15rem; flex-shrink:0;">
               ${
                 api.currentUser?.photoURL || api.profile?.photoURL
                   ? `<img src="${e(api.currentUser?.photoURL || api.profile?.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="PFP">`
@@ -5613,35 +5612,38 @@ document.addEventListener("click", async (event) => {
               }
             </div>
             <div style="flex:1; min-width:0;">
-              <h3 style="margin:0; font-size:1rem; font-weight:700;">${e(api.profile?.name || "User")}</h3>
-              <span style="font-size:0.75rem; color:var(--text-muted);">${roleLabel} · Tuguegarao & Peñablanca</span>
+              <h3 style="margin:0; font-size:1rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e(api.profile?.name || "User")}</h3>
+              <span style="font-size:0.75rem; color:var(--text-muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${roleLabel} · Tuguegarao & Peñablanca</span>
             </div>
+            <button type="button" class="drawer-close-btn" onclick="this.closest('dialog').close();" aria-label="Close menu">
+              ${icon("x")}
+            </button>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
-            <a href="#/search" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
-              ${icon("search")} Explore
+          <div class="drawer-nav-grid">
+            <a href="#/search" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
+              ${icon("search")} <span>Explore</span>
             </a>
-            <a href="#/map" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
-              ${icon("map")} Area Map
+            <a href="#/map" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
+              ${icon("map")} <span>Area Map</span>
             </a>
-            <a href="#/domi" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
-              ${icon("bot")} DOMI
+            <a href="#/domi" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
+              ${icon("bot")} <span>DOMI AI</span>
             </a>
-            <a href="#/favorites" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
-              ${icon("heart")} Saved
+            <a href="#/favorites" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
+              ${icon("heart")} <span>Saved</span>
             </a>
-            <a href="#/messages" class="button outline" style="justify-content:flex-start; padding:10px 12px;" onclick="this.closest('dialog').close();">
-              ${icon("messages-square")} Chat
+            <a href="#/messages" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
+              ${icon("messages-square")} <span>Chat</span>
             </a>
-            <button type="button" class="button outline" style="justify-content:flex-start; padding:10px 12px;" data-action="open-notifications">
-              ${icon("bell")} Alerts
+            <button type="button" class="drawer-nav-btn" data-action="open-notifications">
+              ${icon("bell")} <span>Alerts</span>
             </button>
             ${
               isLandlord
                 ? `
-              <a href="#/properties" class="button outline" style="justify-content:flex-start; padding:10px 12px; grid-column:span 2;" onclick="this.closest('dialog').close();">
-                ${icon("building-2")} My Properties
+              <a href="#/properties" class="drawer-nav-btn col-span-2" onclick="this.closest('dialog').close();">
+                ${icon("building-2")} <span>My Properties</span>
               </a>
             `
                 : ""
@@ -5649,33 +5651,39 @@ document.addEventListener("click", async (event) => {
             ${
               api.isAdmin
                 ? `
-              <a href="#/admin" class="button outline" style="justify-content:flex-start; padding:10px 12px; grid-column:span 2; border-color:var(--brand-primary); color:var(--brand-primary);" onclick="this.closest('dialog').close();">
-                ${icon("shield-check")} Administrator Console
+              <a href="#/admin" class="drawer-nav-btn col-span-2 highlight-admin" onclick="this.closest('dialog').close();">
+                ${icon("shield-check")} <span>Administrator Console</span>
               </a>
             `
                 : ""
             }
-            <a href="#/profile" class="button outline" style="justify-content:flex-start; padding:10px 12px; grid-column:span 2;" onclick="this.closest('dialog').close();">
-              ${icon("user")} Profile & Settings
-            </a>
-            <a href="#/about" class="button text-button" style="justify-content:flex-start; padding:8px 12px;" onclick="this.closest('dialog').close();">
-              ${icon("info")} Fair Housing
-            </a>
-            <a href="#/terms" class="button text-button" style="justify-content:flex-start; padding:8px 12px;" onclick="this.closest('dialog').close();">
-              ${icon("file-text")} Rules & Terms
+            <a href="#/profile" class="drawer-nav-btn col-span-2" onclick="this.closest('dialog').close();">
+              ${icon("user")} <span>Profile & Settings</span>
             </a>
           </div>
 
-          <div style="display:flex; gap:10px; border-top:1px solid var(--border-light); padding-top:14px;">
-            <button class="button outline" style="flex:1;" data-action="theme">
+          <div class="drawer-sublinks">
+            <a href="#/about" class="drawer-text-link" onclick="this.closest('dialog').close();">
+              ${icon("info")} Fair Housing
+            </a>
+            <a href="#/terms" class="drawer-text-link" onclick="this.closest('dialog').close();">
+              ${icon("file-text")} Rules & Terms
+            </a>
+            <a href="#/feedback" class="drawer-text-link" onclick="this.closest('dialog').close();">
+              ${icon("lightbulb")} Suggestions & Fixes
+            </a>
+          </div>
+
+          <div class="drawer-footer-actions">
+            <button type="button" class="button outline small drawer-action-btn" data-action="theme">
               ${icon("sun-moon")} Toggle Theme
             </button>
-            <button class="button outline" style="flex:1; color:var(--danger); border-color:rgba(239, 68, 68, 0.3);" data-action="logout" onclick="this.closest('dialog').close();">
+            <button type="button" class="button outline small drawer-action-btn btn-danger-outline" data-action="logout" onclick="this.closest('dialog').close();">
               ${icon("log-out")} Log Out
             </button>
           </div>
         </div>
-      `);
+      `, { drawer: true });
       break;
     }
     case "domi":
