@@ -231,7 +231,7 @@ const state = {
   domiHistory: [
     {
       role: "domi",
-      text: "Kumusta! I am DOMI, your housing guide for Tuguegarao City. Ask me anything about tenant boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
+      text: "Hi! I'm DOMI, your DormPath housing assistant. I can help you find rooms, compare rentals, and explore places near your school.",
       time: "Just now",
     },
   ],
@@ -645,6 +645,36 @@ function authLayout(content) {
   `;
 }
 
+function mobileNavHtml(current) {
+  const unreadMessages =
+    state.conversations?.filter(
+      (c) =>
+        c.lastSender !== api.currentUser?.uid &&
+        c.updatedAt?.seconds > (c.readAt?.[api.currentUser?.uid]?.seconds || 0),
+    ).length || 0;
+
+  return `
+    <nav class="mobile-nav">
+      <a href="#/search" class="${current === "search" || current === "explore" ? "active" : ""}">
+        ${icon("search")} <span>Explore</span>
+      </a>
+      <a href="#/map" class="${current === "map" ? "active" : ""}">
+        ${icon("map")} <span>Map</span>
+      </a>
+      <a href="#/domi" class="nav-domi-highlight ${current === "domi" ? "active" : ""}">
+        ${icon("bot")} <span>DOMI AI</span>
+      </a>
+      <a href="#/messages" class="${current === "messages" ? "active" : ""}">
+        ${icon("messages-square")} <span>Chat</span>
+        ${unreadMessages > 0 ? `<span class="nav-unread-dot"></span>` : ""}
+      </a>
+      <button type="button" class="mobile-menu-btn" data-action="toggle-mobile-drawer" aria-label="More options">
+        ${icon("menu")} <span>More</span>
+      </button>
+    </nav>
+  `;
+}
+
 // 2. Public Landing Layout (Clean top navbar, full width, NO sidebar)
 function publicLayout(content) {
   const current = location.hash.replace(/^#\/?/, "").split("/")[0] || "home";
@@ -658,7 +688,7 @@ function publicLayout(content) {
           </a>
 
           <div class="nav-actions">
-            ${location.hash && !["#/", "#/home"].includes(location.hash) ? `<a href="#/home" class="button outline small">${icon("arrow-left")} <span class="hide-mobile-xs">Back to home</span><span class="show-mobile-xs-only">Back</span></a>` : ""}
+            ${location.hash && !["#/", "#/home"].includes(location.hash) ? `<a href="#/home" class="button outline small back-btn-nav">${icon("arrow-left")} <span class="hide-mobile-xs">Back to home</span><span class="show-mobile-xs-only">Back</span></a>` : ""}
             <button class="button text-button" data-action="theme" aria-label="Toggle appearance" title="Toggle Dark/Light Mode">
               ${icon("sun-moon")}
             </button>
@@ -667,16 +697,21 @@ function publicLayout(content) {
             </button>
             ${
               api.currentUser
-                ? `<a href="#/profile" class="button primary small" style="display:inline-flex; align-items:center; gap:8px;">
-                     <span style="width:20px; height:20px; border-radius:50%; background:rgba(255,255,255,0.25); display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; overflow:hidden;">
-                       ${
-                         api.currentUser?.photoURL || api.profile?.photoURL
-                           ? `<img src="${e(api.currentUser?.photoURL || api.profile?.photoURL)}" style="width:100%; height:100%; object-fit:cover;">`
-                           : (api.profile?.name || "U")[0].toUpperCase()
-                       }
-                     </span>
-                     <span>${e(api.profile?.name || "Account")}</span>
-                   </a>`
+                ? `
+                  <a href="#/dashboard" class="button primary small" style="display:inline-flex; align-items:center; gap:6px;">
+                    ${icon("layout-dashboard")} <span>Dashboard</span>
+                  </a>
+                  <a href="#/profile" class="button outline small" style="display:inline-flex; align-items:center; gap:6px;" title="Profile & Settings">
+                    <span style="width:20px; height:20px; border-radius:50%; background:rgba(40,85,232,0.1); display:inline-flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; overflow:hidden;">
+                      ${
+                        api.currentUser?.photoURL || api.profile?.photoURL
+                          ? `<img src="${e(api.currentUser?.photoURL || api.profile?.photoURL)}" style="width:100%; height:100%; object-fit:cover;">`
+                          : (api.profile?.name || "U")[0].toUpperCase()
+                      }
+                    </span>
+                    <span class="hide-mobile-xs">${e(api.profile?.name || "Profile")}</span>
+                  </a>
+                `
                 : `<a href="#/login" class="button primary small"><span class="hide-mobile-xs">Log In</span><span class="show-mobile-xs-only">Login</span> ${icon("arrow-right")}</a>`
             }
           </div>
@@ -727,6 +762,7 @@ function publicLayout(content) {
           <span>Zero booking fees for tenants · Verified property owners</span>
         </div>
       </footer>
+      ${mobileNavHtml(current)}
     </div>
   `;
 }
@@ -874,42 +910,7 @@ function appLayout(content) {
         </main>
       </div>
 
-      <nav class="mobile-nav">
-        ${
-          isLandlord
-            ? `
-          <a href="#/dashboard" class="${current === "dashboard" ? "active" : ""}">
-            ${icon("layout-dashboard")} <span>Dashboard</span>
-          </a>
-          <a href="#/properties" class="${["properties", "add-property", "edit-property", "property-new"].includes(current) ? "active" : ""}">
-            ${icon("building-2")} <span>Properties</span>
-          </a>
-          <a href="#/search" class="${current === "search" || current === "map" || current === "explore" ? "active" : ""}">
-            ${icon("search")} <span>Explore</span>
-          </a>
-          <a href="#/messages" class="${current === "messages" ? "active" : ""}">
-            ${icon("messages-square")} <span>Chat</span>
-          </a>
-        `
-            : `
-          <a href="#/search" class="${current === "search" || current === "explore" ? "active" : ""}">
-            ${icon("search")} <span>Explore</span>
-          </a>
-          <a href="#/map" class="${current === "map" ? "active" : ""}">
-            ${icon("map")} <span>Map</span>
-          </a>
-          <a href="#/domi" class="nav-domi-highlight ${current === "domi" ? "active" : ""}">
-            ${icon("bot")} <span>DOMI AI</span>
-          </a>
-          <a href="#/messages" class="${current === "messages" ? "active" : ""}">
-            ${icon("messages-square")} <span>Chat</span>
-          </a>
-        `
-        }
-        <button type="button" class="mobile-menu-btn" data-action="toggle-mobile-drawer" aria-label="More options">
-          ${icon("menu")} <span>More</span>
-        </button>
-      </nav>
+      ${mobileNavHtml(current)}
     </div>
   `;
 }
@@ -1215,41 +1216,51 @@ function home() {
 }
 
 // Redesigned Property Card
+// Redesigned Property Card — Phase 3
 function card(p) {
-  const saved = state.favorites.some((f) => f.propertyId === p.id);
-  const isAvailable = p.available > 0;
+  const saved = (state.favorites || []).some((f) => f.propertyId === p.id);
+  const isAvailable = (p.available ?? 0) > 0;
+  const isVerified = Boolean(p.verified);
 
   return `
-    <article class="property-card">
+    <article class="property-card ${!isAvailable ? "card-is-full" : ""}">
       <div class="property-image-container">
-        <a href="#/property/${e(p.id)}">
+        <a href="#/property/${e(p.id)}" class="card-img-link" aria-label="View ${e(p.title)}">
           ${
             p.photos?.[0]
-              ? `<img src="${e(p.photos[0])}" alt="${e(p.title)}" loading="lazy">`
+              ? `<img src="${e(p.photos[0])}" alt="${e(p.title)}" loading="lazy" class="property-card-thumb" onerror="this.onerror=null;this.src='/domi.png';">`
               : `<div class="property-image-placeholder">${icon("building-2")}<span>Photo pending</span></div>`
           }
         </a>
-        <span class="card-badge-overlay ${isAvailable ? "badge-available" : "badge-occupied"}">
-          ${isAvailable ? `● ${p.available} space${p.available > 1 ? "s" : ""} left` : "Currently full"}
-        </span>
-        <button class="card-save-btn ${saved ? "saved" : ""}" data-save="${e(p.id)}" aria-label="${saved ? "Unsave" : "Save"} ${e(p.title)}">
+
+        <!-- Top Badges Overlay -->
+        <div class="card-badge-container">
+          <span class="card-badge-pill ${isAvailable ? "badge-available" : "badge-occupied"}">
+            ${isAvailable ? `● ${p.available} space${p.available > 1 ? "s" : ""} left` : "Currently full"}
+          </span>
+          ${
+            isVerified
+              ? `<span class="card-badge-pill badge-verified">${icon("badge-check")} Verified Owner</span>`
+              : `<span class="card-badge-pill badge-owner-tag">${icon("building-2")} Owner Listing</span>`
+          }
+        </div>
+
+        <button type="button" class="card-save-btn ${saved ? "saved" : ""}" data-save="${e(p.id)}" aria-label="${saved ? "Unsave" : "Save"} ${e(p.title)}" title="${saved ? "Saved to favorites" : "Save property"}">
           ${icon("heart")}
         </button>
       </div>
 
       <div class="property-card-body">
-        <div class="card-header-row">
-          <span class="card-room-type">${e(p.roomTypes?.[0] || "Room")}</span>
-          <span class="card-verified-tag">${icon("building-2")} Owner listing</span>
+        <div class="card-meta-line">
+          <span class="card-type-chip">${e(p.roomTypes?.[0] || "Room")}</span>
+          <span class="card-location-text">
+            ${icon("map-pin")} ${e(p.barangay || "Centro")}, Tuguegarao
+          </span>
         </div>
 
-        <a href="#/property/${e(p.id)}">
+        <a href="#/property/${e(p.id)}" class="card-title-link">
           <h3 class="property-card-title">${e(p.title)}</h3>
         </a>
-
-        <div class="property-card-location">
-          ${icon("map-pin")} <span>${e(p.barangay)}, Tuguegarao</span>
-        </div>
 
         <div class="card-amenities-row">
           ${(p.amenities || []).slice(0, 3).map((a) => `<span class="card-amenity-chip">${e(a)}</span>`).join("")}
@@ -1257,11 +1268,11 @@ function card(p) {
 
         <div class="property-card-footer">
           <div class="card-price-block">
-            <strong>${money(p.minPrice)}</strong>
-            <small>/ month</small>
+            <span class="card-price-value">${money(p.minPrice)}</span>
+            <span class="card-price-unit">/ mo</span>
           </div>
-          <a href="#/property/${e(p.id)}" class="button primary small">
-            View Details ${icon("arrow-up-right")}
+          <a href="#/property/${e(p.id)}" class="button primary small card-action-btn">
+            <span>View Details</span> ${icon("arrow-up-right")}
           </a>
         </div>
       </div>
@@ -1273,29 +1284,51 @@ function listingArea(items) {
   if (!state.loaded) {
     return `
       <div class="property-grid">
-        ${[1, 2, 3].map(() => `<div class="skeleton" style="height:360px; border-radius:var(--radius-xl);"></div>`).join("")}
+        ${[1, 2, 3, 4].map(() => `
+          <div class="property-card skeleton-card">
+            <div class="skeleton" style="height:190px; border-radius:var(--radius-lg) var(--radius-lg) 0 0;"></div>
+            <div style="padding:14px; display:flex; flex-direction:column; gap:10px;">
+              <div class="skeleton" style="height:14px; width:60%;"></div>
+              <div class="skeleton" style="height:20px; width:90%;"></div>
+              <div class="skeleton" style="height:14px; width:40%;"></div>
+            </div>
+          </div>
+        `).join("")}
       </div>
     `;
   }
-  if (!items.length) {
-    return empty(
-      state.error ? "Connection notice" : "No properties found",
-      state.error || "No published spaces match your current search filter. Try adjusting your budget or area.",
-      `<a class="button outline" href="#/map">Explore Area Map ${icon("arrow-right")}</a>`,
-    );
+  if (!items || !items.length) {
+    const isFiltered = Boolean(state.filters && Object.keys(state.filters).some((k) => state.filters[k] && (Array.isArray(state.filters[k]) ? state.filters[k].length : true)));
+    return `
+      <div class="empty-state-card">
+        <div class="empty-state-icon">
+          ${icon("search")}
+        </div>
+        <h3>${isFiltered ? "No matching spaces found" : "No available properties yet"}</h3>
+        <p>${
+          isFiltered
+            ? "No published listings match your current filters. Try adjusting your search query, budget range, or room type."
+            : "No properties have been published yet in this area. Check back soon or explore the map."
+        }</p>
+        <div class="empty-state-actions">
+          ${isFiltered ? `<button type="button" class="button primary small" data-action="reset-filters">Clear All Filters</button>` : ""}
+          <a class="button outline small" href="#/map">${icon("map")} <span>Explore Area Map</span></a>
+        </div>
+      </div>
+    `;
   }
   return `<div class="property-grid">${items.map(card).join("")}</div>`;
 }
 
 function empty(title, description, action = "") {
   return `
-    <div style="text-align:center; padding:60px 24px; background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-xl); max-width:600px; margin:40px auto;">
-      <div style="width:56px; height:56px; border-radius:50%; background:var(--primary-subtle); color:var(--primary); display:grid; place-items:center; margin:0 auto 16px;">
+    <div class="empty-state-card">
+      <div class="empty-state-icon">
         ${icon("house-plus")}
       </div>
-      <h3 style="font-size:1.25rem; margin-bottom:8px;">${title}</h3>
-      <p style="margin-bottom:20px;">${description}</p>
-      ${action}
+      <h3>${title}</h3>
+      <p>${description}</p>
+      ${action ? `<div class="empty-state-actions">${action}</div>` : ""}
     </div>
   `;
 }
@@ -1843,6 +1876,14 @@ async function dashboard() {
 // Tuguegarao City Coordinates & Fallbacks
 const TUGUEGARAO_CENTER = [121.7270, 17.6132]; // [lng, lat] for MapLibre
 
+const CAMPUS_COORDS = {
+  "USL": [121.7335, 17.6205],
+  "SPUP": [121.7248, 17.6288],
+  "CSU Carig": [121.7588, 17.6534],
+  "CSU Andrews": [121.7278, 17.6167],
+  "CVMC": [121.7545, 17.6495]
+};
+
 const BARANGAY_COORDS = {
   centro: [121.7282, 17.6135],
   poblacion: [121.7282, 17.6135],
@@ -1908,9 +1949,134 @@ function getPropertyCoordinates(p) {
   return null; // Never invent a property location.
 }
 
-// Redesigned Search & 3D Map Page
+function renderActiveFilterChips() {
+  const chips = [];
+  if (state.filters.q) {
+    chips.push(`<button type="button" class="active-filter-chip" data-clear-filter="q">"${e(state.filters.q)}" ${icon("x")}</button>`);
+  }
+  if (state.filters.type) {
+    chips.push(`<button type="button" class="active-filter-chip" data-clear-filter="type">${e(state.filters.type)} ${icon("x")}</button>`);
+  }
+  if (state.filters.budget) {
+    chips.push(`<button type="button" class="active-filter-chip" data-clear-filter="budget">Under ₱${Number(state.filters.budget).toLocaleString()} ${icon("x")}</button>`);
+  }
+  if (state.filters.vacant) {
+    chips.push(`<button type="button" class="active-filter-chip" data-clear-filter="vacant">Vacancies only ${icon("x")}</button>`);
+  }
+  if (state.filters.school) {
+    chips.push(`<button type="button" class="active-filter-chip" data-clear-filter="school">Near ${e(state.filters.school)} ${icon("x")}</button>`);
+  }
+  if (state.filters.amenities?.length) {
+    for (const a of state.filters.amenities) {
+      chips.push(`<button type="button" class="active-filter-chip" data-clear-amenity="${e(a)}">${e(a)} ${icon("x")}</button>`);
+    }
+  }
+  return chips.join("");
+}
+
+function openFiltersModal() {
+  const activeBudget = state.filters.budget || "";
+  const activeType = state.filters.type || "";
+  const activeVacant = Boolean(state.filters.vacant);
+  const activeAmenities = state.filters.amenities || [];
+  const activeSchool = state.filters.school || "";
+
+  modal(`
+    <div class="filters-bottom-sheet">
+      <div class="drawer-drag-pill"></div>
+      <div class="filters-sheet-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          ${icon("sliders-horizontal")}
+          <h3 style="margin:0; font-size:1.125rem; font-weight:700;">Filter Properties</h3>
+        </div>
+        <button type="button" class="drawer-close-btn" data-action="close-modal" aria-label="Close filters">${icon("x")}</button>
+      </div>
+
+      <form id="advanced-filters-form" class="filters-sheet-form">
+        <!-- Monthly Budget -->
+        <div class="filter-field-group">
+          <label class="filter-group-label">Max Monthly Budget (₱)</label>
+          <div class="budget-presets-row">
+            <button type="button" class="budget-preset-btn ${activeBudget == 2500 ? "active" : ""}" data-set-budget="2500">₱2,500</button>
+            <button type="button" class="budget-preset-btn ${activeBudget == 3500 ? "active" : ""}" data-set-budget="3500">₱3,500</button>
+            <button type="button" class="budget-preset-btn ${activeBudget == 5000 ? "active" : ""}" data-set-budget="5000">₱5,000</button>
+            <button type="button" class="budget-preset-btn ${!activeBudget ? "active" : ""}" data-set-budget="">Any</button>
+          </div>
+          <input type="number" name="budget" id="filter-budget-input" placeholder="e.g. 3500" value="${e(activeBudget)}" min="500" max="50000" step="100" class="filter-text-input" />
+        </div>
+
+        <!-- Property Type -->
+        <div class="filter-field-group">
+          <label class="filter-group-label">Property / Room Type</label>
+          <select name="type" class="filter-select-input" id="filter-type-select">
+            <option value="">All Property Types</option>
+            ${TYPES.map((t) => `<option value="${e(t)}" ${activeType === t ? "selected" : ""}>${e(t)}</option>`).join("")}
+          </select>
+        </div>
+
+        <!-- Nearby School / Campus -->
+        <div class="filter-field-group">
+          <label class="filter-group-label">Nearby University / Campus</label>
+          <select name="school" class="filter-select-input" id="filter-school-select">
+            <option value="">All Tuguegarao & Peñablanca</option>
+            <option value="USL" ${activeSchool === "USL" ? "selected" : ""}>University of Saint Louis (USL)</option>
+            <option value="SPUP" ${activeSchool === "SPUP" ? "selected" : ""}>St. Paul University Philippines (SPUP)</option>
+            <option value="CSU Carig" ${activeSchool === "CSU Carig" ? "selected" : ""}>CSU Carig Campus (Engineering / Tech)</option>
+            <option value="CSU Andrews" ${activeSchool === "CSU Andrews" ? "selected" : ""}>CSU Andrews (Main Campus)</option>
+            <option value="CVMC" ${activeSchool === "CVMC" ? "selected" : ""}>Cagayan Valley Medical Center (CVMC)</option>
+          </select>
+        </div>
+
+        <!-- Vacancy Only -->
+        <div class="filter-field-group">
+          <label class="filter-checkbox-label">
+            <input type="checkbox" name="vacant" id="filter-vacant-input" ${activeVacant ? "checked" : ""} />
+            <span>Show spaces with available vacancies only</span>
+          </label>
+        </div>
+
+        <!-- Amenities -->
+        <div class="filter-field-group">
+          <label class="filter-group-label">Amenities</label>
+          <div class="amenities-checkbox-grid">
+            ${AMENITIES.map(
+              (a) => `
+              <label class="amenity-chip-checkbox ${activeAmenities.includes(a) ? "checked" : ""}">
+                <input type="checkbox" name="amenities" value="${e(a)}" ${activeAmenities.includes(a) ? "checked" : ""} />
+                <span>${e(a)}</span>
+              </label>
+            `,
+            ).join("")}
+          </div>
+        </div>
+
+        <div class="filters-sheet-actions">
+          <button type="button" class="button outline" data-action="reset-filters-modal">Reset All</button>
+          <button type="submit" class="button primary">Apply Filters</button>
+        </div>
+      </form>
+    </div>
+  `, { drawer: true });
+}
+
+// Redesigned Search & Map Page — Phase 3 & 4
 function searchPage(mapView = false) {
   const items = filterProperties(state.properties, state.filters);
+  const hasActiveFilters = Boolean(
+    state.filters.q ||
+    state.filters.type ||
+    state.filters.budget ||
+    state.filters.vacant ||
+    state.filters.school ||
+    state.filters.amenities?.length
+  );
+  const activeFiltersCount = [
+    state.filters.type,
+    state.filters.budget,
+    state.filters.vacant,
+    state.filters.school,
+    ...(state.filters.amenities || [])
+  ].filter(Boolean).length;
 
   if (mapView) {
     return `
@@ -1922,73 +2088,103 @@ function searchPage(mapView = false) {
           <div class="map3d-floating-bar">
             <div class="map3d-floating-info">
               <div class="map3d-pill-brand">
-                <span style="font-size:1.1rem;">📍</span>
+                ${icon("map-pin")}
                 <strong>Tuguegarao & Peñablanca</strong>
               </div>
-              <span class="map3d-pill-count">${items.length} place${items.length === 1 ? "" : "s"}</span>
+              <span class="map3d-pill-count">${items.length} ${items.length === 1 ? "place" : "places"}</span>
             </div>
 
             <div class="map3d-floating-chips">
-              <button class="map3d-filter-chip ${!state.filters.type ? "active" : ""}" data-map-filter="">All Types</button>
-              ${TYPES.map((t) => `<button class="map3d-filter-chip ${state.filters.type === t ? "active" : ""}" data-map-filter="${t}">${t}</button>`).join("")}
-              <button class="map3d-filter-chip ${state.filters.vacant ? "active" : ""}" data-map-vacant="toggle">
+              <button type="button" class="map3d-filter-chip ${!state.filters.type && !state.filters.school ? "active" : ""}" data-map-filter="">All Types</button>
+              ${TYPES.map((t) => `<button type="button" class="map3d-filter-chip ${state.filters.type === t ? "active" : ""}" data-map-filter="${e(t)}">${e(t)}</button>`).join("")}
+              <button type="button" class="map3d-filter-chip ${state.filters.vacant ? "active" : ""}" data-map-vacant="toggle">
                 ${state.filters.vacant ? "✓ Vacant" : "Vacant"}
               </button>
+              ${["USL", "SPUP", "CSU Carig", "CSU Andrews", "CVMC"].map((s) => `
+                <button type="button" class="map3d-filter-chip ${state.filters.school === s ? "active" : ""}" data-map-school="${s}">
+                  🎓 ${s}
+                </button>
+              `).join("")}
             </div>
 
-            <a href="#/search" class="button outline small" style="background:var(--bg-surface); white-space:nowrap; border-radius:var(--radius-full); font-weight:700; height:34px; padding:0 12px; display:inline-flex; align-items:center; gap:6px; flex-shrink:0; margin-left:6px;">
-              ${icon("layout-grid")} <span>Grid View</span>
-            </a>
+            <div class="segmented-control" style="background:var(--bg-surface); padding:2px; box-shadow:var(--shadow-sm); flex-shrink:0;">
+              <a href="#/search" class="segment-btn" aria-label="Switch to list view">
+                ${icon("layout-grid")} <span>List</span>
+              </a>
+              <a href="#/map" class="segment-btn active" aria-label="Map view">
+                ${icon("map")} <span>Map</span>
+              </a>
+            </div>
           </div>
 
-          <!-- Polished Floating Map Controls -->
+          <!-- Floating Map Controls -->
           <div class="map3d-controls-overlay">
-            <button class="map3d-ctrl-btn" id="map3d-compass-btn" title="Reset North">
+            <button type="button" class="map3d-ctrl-btn" id="map3d-compass-btn" title="Reset North" aria-label="Reset North">
               ${icon("compass")}
             </button>
-            <button class="map3d-ctrl-btn" id="map3d-locate-btn" title="Locate Me">
+            <button type="button" class="map3d-ctrl-btn" id="map3d-locate-btn" title="My Location" aria-label="Locate me">
               ${icon("crosshair")}
             </button>
-            <button class="map3d-ctrl-btn" id="map3d-center-btn" title="Reset to Center">
+            <button type="button" class="map3d-ctrl-btn" id="map3d-center-btn" title="Reset to Center" aria-label="Reset to Center">
               ${icon("house")}
             </button>
-            <button class="map3d-ctrl-btn" id="map3d-zoom-in" title="Zoom In">
+            <button type="button" class="map3d-ctrl-btn" id="map3d-zoom-in" title="Zoom In" aria-label="Zoom in">
               ${icon("plus")}
             </button>
-            <button class="map3d-ctrl-btn" id="map3d-zoom-out" title="Zoom Out">
+            <button type="button" class="map3d-ctrl-btn" id="map3d-zoom-out" title="Zoom Out" aria-label="Zoom out">
               ${icon("minus")}
             </button>
-          </div>
-
-          <!-- Interactive Interaction Hint -->
-          <div class="map3d-tip-pill">
-            ${icon("map-pin")} Interactive map of Tuguegarao City & Peñablanca boarding houses
           </div>
 
           ${
             items.length
               ? `
-            <!-- Floating bottom drawer for listings -->
-            <div class="map3d-bottom-sheet">
-              <div class="map3d-sheet-handle"></div>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <strong style="font-size:0.875rem;">${items.length} Properties in Tuguegarao & Peñablanca</strong>
-                <a href="#/search" class="button outline small" style="padding:2px 8px; font-size:0.75rem;">View Full List</a>
+            <!-- Interactive Draggable / Collapsible Bottom Sheet -->
+            <div class="map-bottom-sheet" id="map-bottom-sheet" data-state="peek">
+              <div class="map-sheet-drag-handle" id="map-sheet-handle" title="Drag or tap to expand/collapse">
+                <div class="sheet-handle-bar"></div>
               </div>
-              <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;">
-                ${items.slice(0, 15).map((p) => `
-                  <div class="map3d-card" data-focus-property="${p.id}" style="min-width:240px; grid-template-columns:72px 1fr;">
-                    <img src="${e(p.photos?.[0] || "/domi.png")}" class="map3d-card-thumb" style="width:72px; height:64px;" alt="${e(p.title)}" onerror="this.onerror=null;this.src='/domi.png'">
-                    <div class="map3d-card-content">
-                      <div class="map3d-card-title">${e(p.title)}</div>
-                      <div class="map3d-card-price">₱${Number(p.minPrice || 0).toLocaleString()}</div>
+              <div class="map-sheet-header">
+                <div>
+                  <strong style="font-size:0.875rem; color:var(--text-main);">${items.length} ${items.length === 1 ? "Space" : "Spaces"} in View</strong>
+                  <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Tap a card to locate on map</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="button outline small sheet-expand-toggle-btn" id="map-sheet-toggle-btn" style="padding:4px 8px; font-size:0.75rem;">
+                    ${icon("chevron-up")} <span>Expand</span>
+                  </button>
+                  <a href="#/search" class="button outline small" style="padding:4px 8px; font-size:0.75rem;">List</a>
+                </div>
+              </div>
+              <div class="map-sheet-cards-scroll">
+                ${items.map((p) => `
+                  <div class="map-sheet-card" data-focus-property="${e(p.id)}">
+                    <img src="${e(p.photos?.[0] || "/domi.png")}" class="map-sheet-thumb" alt="${e(p.title)}" onerror="this.onerror=null;this.src='/domi.png'">
+                    <div class="map-sheet-info">
+                      <div class="map-sheet-type-row">
+                        <span class="card-room-type">${e(p.roomTypes?.[0] || "Room")}</span>
+                        <span class="badge ${p.available > 0 ? "badge-success" : "badge-subtle"}" style="font-size:0.625rem; padding:1px 6px;">
+                          ${p.available > 0 ? `${p.available} left` : "Full"}
+                        </span>
+                      </div>
+                      <h4 class="map-sheet-title">${e(p.title)}</h4>
+                      <div class="map-sheet-footer">
+                        <span class="map-sheet-price">${money(p.minPrice)}<small style="font-size:0.6875rem; color:var(--text-muted);">/mo</small></span>
+                        <a href="#/property/${e(p.id)}" class="button primary small" style="padding:3px 8px; font-size:0.6875rem;">
+                          Details
+                        </a>
+                      </div>
                     </div>
                   </div>
                 `).join("")}
               </div>
             </div>
           `
-              : ""
+              : `
+            <div class="map3d-tip-pill">
+              ${icon("map-pin")} No properties match current filter. Reset filter to see all pins.
+            </div>
+          `
           }
         </main>
       </div>
@@ -1996,37 +2192,87 @@ function searchPage(mapView = false) {
   }
 
   return `
-    <div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
-        <div>
-          <div class="overline">EXPLORE TUGUEGARAO</div>
-          <h2>Available Rooms & Dorms</h2>
-          <p>${items.length} verified space${items.length === 1 ? "" : "s"} found</p>
+    <div class="explore-page-root">
+      <!-- Search & Filters Header -->
+      <div class="explore-search-header">
+        <div class="explore-search-bar-row">
+          <div class="explore-search-input-box">
+            ${icon("search", "search-field-icon")}
+            <input
+              type="search"
+              id="explore-search-input"
+              class="explore-search-field"
+              placeholder="Search rooms, dorms, or locations"
+              value="${e(state.filters.q || "")}"
+              autocomplete="off"
+              aria-label="Search rooms, dorms, or locations"
+            />
+            ${
+              state.filters.q
+                ? `<button type="button" class="explore-search-clear-btn" id="explore-search-clear" aria-label="Clear search">${icon("x")}</button>`
+                : ""
+            }
+          </div>
+          <button type="button" class="explore-filter-trigger-btn ${activeFiltersCount > 0 ? "has-active" : ""}" data-action="open-filters-sheet" aria-label="Filter listings">
+            ${icon("sliders-horizontal")}
+            <span class="filter-btn-text">Filters</span>
+            ${activeFiltersCount > 0 ? `<span class="filter-count-badge">${activeFiltersCount}</span>` : ""}
+          </button>
         </div>
-        <div style="display:flex; gap:8px;">
-          <a href="#/search" class="button ${!mapView ? "primary" : "outline"} small">
-            ${icon("layout-grid")} List
-          </a>
-          <a href="#/map" class="button ${mapView ? "primary" : "outline"} small">
-            ${icon("map")} Map Explorer
-          </a>
+
+        <!-- Quick Filter Chips Scrollable Row -->
+        <div class="explore-quick-chips-scroll">
+          <button type="button" class="quick-chip ${!state.filters.type ? "active" : ""}" data-explore-type="">All Types</button>
+          ${TYPES.map((t) => `<button type="button" class="quick-chip ${state.filters.type === t ? "active" : ""}" data-explore-type="${e(t)}">${e(t)}</button>`).join("")}
+          <button type="button" class="quick-chip ${state.filters.vacant ? "active" : ""}" data-explore-vacant="toggle">
+            ${state.filters.vacant ? "✓ Vacancies Only" : "Vacancies Only"}
+          </button>
+          <button type="button" class="quick-chip ${state.filters.budget === 3000 ? "active" : ""}" data-explore-budget="3000">
+            Under ₱3,000
+          </button>
+          <button type="button" class="quick-chip ${state.filters.amenities?.includes("Wi-Fi") ? "active" : ""}" data-explore-amenity="Wi-Fi">
+            Wi-Fi
+          </button>
+          <button type="button" class="quick-chip ${state.filters.amenities?.includes("Air conditioning") ? "active" : ""}" data-explore-amenity="Air conditioning">
+            Aircon
+          </button>
+        </div>
+
+        <!-- Removable Active Filters Bar -->
+        ${
+          hasActiveFilters
+            ? `
+          <div class="active-filters-chips-bar">
+            <span class="active-filters-label">Active:</span>
+            ${renderActiveFilterChips()}
+            <button type="button" class="clear-all-filters-btn" data-action="reset-filters">Clear all</button>
+          </div>
+        `
+            : ""
+        }
+
+        <!-- Results Count & List/Map View Toggle -->
+        <div class="explore-results-meta-row">
+          <div class="explore-results-count" id="explore-results-count">
+            <strong>${items.length}</strong> ${items.length === 1 ? "space" : "spaces"} available
+          </div>
+          <div class="segmented-control">
+            <a href="#/search" class="segment-btn active" aria-label="List view">
+              ${icon("layout-grid")} <span>List</span>
+            </a>
+            <a href="#/map" class="segment-btn" aria-label="Map view">
+              ${icon("map")} <span>Map</span>
+            </a>
+          </div>
         </div>
       </div>
 
-      <form id="filters" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:28px; background:var(--bg-surface); padding:16px; border-radius:var(--radius-lg); border:1px solid var(--border);">
-        <select name="type" style="width:auto; min-width:160px;">
-          <option value="">All space types</option>
-          ${TYPES.map((t) => `<option ${state.filters.type === t ? "selected" : ""}>${t}</option>`).join("")}
-        </select>
-        <label class="check" style="margin:0;">
-          <input type="checkbox" name="vacant" ${state.filters.vacant ? "checked" : ""}> With vacancies only
-        </label>
-        <button class="button outline small">Apply filters</button>
-        <button type="button" class="button text-button small" data-action="reset-filters">Reset</button>
-      </form>
+      <!-- Listings Grid Mount -->
+      <div id="explore-listings-mount">
+        ${listingArea(items)}
+      </div>
 
-      ${listingArea(items)}
-      ${state.more ? `<div style="text-align:center; margin-top:32px;"><button class="button outline" data-action="load-more">Load more properties</button></div>` : ""}
+      ${state.more ? `<div class="explore-load-more-row" style="text-align:center; margin-top:28px;"><button class="button outline" data-action="load-more">Load more properties</button></div>` : ""}
     </div>
   `;
 }
@@ -2037,6 +2283,16 @@ async function messagesPage(id) {
   state.conversations = convs;
   const selected = convs.find((c) => c.id === id);
   state.chat = selected;
+
+  let prop = null;
+  if (selected?.propertyId) {
+    prop = state.properties?.find((p) => p.id === selected.propertyId);
+    if (!prop) {
+      try {
+        prop = await api.getProperty(selected.propertyId);
+      } catch {}
+    }
+  }
 
   if (id && selected) {
     if (!state.manualUnread?.[id]) {
@@ -2113,6 +2369,31 @@ async function messagesPage(id) {
               <button class="button text-button small" data-action="block">Block</button>
             </div>
           </header>
+
+          ${
+            selected.propertyId
+              ? `
+            <div class="chat-property-reference-banner">
+              ${
+                prop?.photos?.[0]
+                  ? `<img src="${e(prop.photos[0])}" class="banner-prop-thumb" style="width:36px; height:36px; border-radius:6px; object-fit:cover; flex-shrink:0;" alt="Property thumb" />`
+                  : `<div style="width:36px; height:36px; border-radius:6px; background:var(--primary-subtle); display:flex; align-items:center; justify-content:center; color:var(--primary); flex-shrink:0;">${icon("building-2")}</div>`
+              }
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; font-size:0.8125rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-main);">
+                  ${e(selected.title || prop?.title || "Property Listing")}
+                </div>
+                <div style="font-size:0.6875rem; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                  ${prop ? `<strong>${money(prop.minPrice)}/mo</strong> · ${e(prop.roomTypes?.[0] || 'Room')}` : `<span>Direct Inquiry</span>`}
+                </div>
+              </div>
+              <a href="#/property/${e(selected.propertyId)}" class="button outline small" style="padding:4px 10px; font-size:0.75rem; flex-shrink:0;">
+                ${icon("arrow-up-right")} View Listing
+              </a>
+            </div>
+          `
+              : ""
+          }
           <div id="viewings" style="padding:8px 24px;"></div>
           <div id="messages" class="chat-messages-area">
             <div style="display:flex; justify-content:center; padding:24px 0;">${domiLoaderHtml("compact")}</div>
@@ -2237,8 +2518,9 @@ function renderMessages(items) {
         (m) => `
       <div class="message-bubble ${m.senderId === api.currentUser.uid ? "mine" : "other"}">
         ${formatChatMessageContent(m.text)}
-        <div class="message-time" style="font-size:0.6875rem; opacity:0.85; margin-top:4px; text-align:right;">
-          ${date(m.createdAt)}
+        <div class="message-time" style="font-size:0.6875rem; opacity:0.85; margin-top:4px; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:4px;">
+          <span>${date(m.createdAt)}</span>
+          ${m.senderId === api.currentUser.uid ? `<span class="message-status-tick" title="Delivered">${icon("check")}</span>` : ""}
         </div>
       </div>
     `,
@@ -3745,18 +4027,45 @@ async function adminPage(tab = "users") {
 // Redesigned About Page
 function about() {
   return `
-    <div style="max-width:800px; margin:40px auto; padding:0 24px;">
-      <div class="overline">OUR MISSION</div>
-      <h1>Built around belonging.</h1>
-      <p style="font-size:1.125rem; margin:14px 0 32px;">
-        DormPath connects tenants with verified local property owners in Tuguegarao City without middleman fees.
-      </p>
+    <div class="legal-page-shell">
+      <div class="legal-header-block">
+        <div class="policy-badge">${icon("shield-check")} Zero Middleman Fees</div>
+        <h1 class="legal-title">Built around student belonging.</h1>
+        <p class="legal-subtitle">
+          DormPath connects room searchers with verified local boarding house, apartment, and dorm owners across Tuguegarao City and Peñablanca without booking fees or agent markups.
+        </p>
+      </div>
 
-      <div class="detail-section">
-        <h3>Our Promise to Tenants</h3>
-        <p>Browse without an account. Join free to save places, message owners, and post room requests. No tenant subscriptions, platform booking markups, or messaging charges.</p>
-        <h3 style="margin-top:20px;">Verified Owners & Accurate Vacancies</h3>
-        <p>Owner badges are granted after manual identity review. Vacancies carry timestamps so you always know when availability was last updated.</p>
+      <div class="legal-cards-grid">
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("sparkles")}</span>
+            <strong>Our ₱0 Fee Promise to Tenants</strong>
+          </div>
+          <p>
+            Browse freely without an account. Sign in to save favorite rooms, direct-message property owners, or coordinate ocular viewings. DormPath charges zero reservation fees, markup costs, or messaging fees.
+          </p>
+        </div>
+
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("badge-check")}</span>
+            <strong>Verified Owners & Accurate Vacancies</strong>
+          </div>
+          <p>
+            Owner verification badges are awarded following identity and barangay business permit validation by administrators. Vacancies display live counters so you always know real availability before visiting.
+          </p>
+        </div>
+
+        <div class="legal-card">
+          <div class="legal-card-header">
+            <span class="legal-card-icon">${icon("compass")}</span>
+            <strong>Campus-Centered Discovery</strong>
+          </div>
+          <p>
+            Locate boarding houses near your university — CSU Carig, CSU Andrews, University of Saint Louis (USL), St. Paul University Philippines (SPUP), and Cagayan Valley Medical Center (CVMC) — with realistic commute insights and walking distances.
+          </p>
+        </div>
       </div>
     </div>
   `;
@@ -3765,12 +4074,14 @@ function about() {
 // Republic Act No. 10173 Compliant Data Privacy Policy
 function privacyPage() {
   return `
-    <div class="legal-modal-inner">
-      <div class="policy-badge">${icon("shield-check")} Data Privacy Notice (RA 10173)</div>
-      <h2 style="font-size:1.625rem; font-weight:800; margin:10px 0 4px; color:var(--text-main);">Privacy Policy</h2>
-      <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:20px;">
-        Last updated: 17 October 2026 · Transparent information protection for DormPath tenants and landlords in Tuguegarao City.
-      </p>
+    <div class="legal-page-shell">
+      <div class="legal-header-block">
+        <div class="policy-badge">${icon("shield-check")} Data Privacy Notice (RA 10173)</div>
+        <h1 class="legal-title">Data Privacy Policy</h1>
+        <p class="legal-subtitle">
+          Last updated: 17 October 2026 · Transparent information protection for DormPath tenants and landlords in Tuguegarao City.
+        </p>
+      </div>
 
       <div class="legal-cards-grid">
         <div class="legal-card">
@@ -3829,12 +4140,14 @@ function privacyPage() {
 
 function termsPage() {
   return `
-    <div class="legal-modal-inner">
-      <div class="policy-badge">${icon("heart-handshake")} Community Trust & Standards</div>
-      <h2 style="font-size:1.625rem; font-weight:800; margin:10px 0 4px; color:var(--text-main);">Terms of Service</h2>
-      <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:20px;">
-        Fair, honest, and respectful housing for Tuguegarao City tenants and property owners.
-      </p>
+    <div class="legal-page-shell">
+      <div class="legal-header-block">
+        <div class="policy-badge">${icon("heart-handshake")} Community Trust & Standards</div>
+        <h1 class="legal-title">Terms of Service</h1>
+        <p class="legal-subtitle">
+          Fair, honest, and respectful housing for Tuguegarao City tenants and property owners.
+        </p>
+      </div>
 
       <div class="legal-cards-grid">
         <div class="legal-card">
@@ -3881,7 +4194,7 @@ function termsPage() {
   `;
 }
 
-// Dedicated DOMI Housing Assistant (Fullscreen with 3D Companion)
+// Redesigned DOMI AI Housing Assistant — Phase 5
 function domiPage() {
   const messagesHtml = (state.domiHistory || [])
     .map((m) => {
@@ -3909,50 +4222,75 @@ function domiPage() {
 
   return `
     <div class="domi-fullscreen-shell">
-      <!-- Left: Chat conversation stream -->
       <div class="domi-chat-pane">
+        <!-- Compact DOMI Header -->
         <header class="domi-chat-topbar">
           <div class="domi-brand-row">
             <div class="brand-mascot-badge">
               <img src="/domi.png" alt="DOMI Mascot" class="brand-mascot-img" />
             </div>
             <div>
-              <h2 style="font-size:1.125rem; font-weight:800; color:var(--text-main); margin:0;">DOMI Housing Assistant</h2>
-              <span style="font-size:0.75rem; color:var(--success); font-weight:600; display:flex; align-items:center; gap:4px;">
-                <span style="width:6px; height:6px; border-radius:50%; background:var(--success); display:inline-block;"></span>
-                Powered by Groq AI · 24/7 Housing Guide
+              <div class="domi-header-title-row">
+                <h2 style="font-size:1.0625rem; font-weight:800; color:var(--text-main); margin:0;">DOMI AI Housing Assistant</h2>
+              </div>
+              <span class="domi-status-indicator">
+                <span class="domi-status-dot"></span>
+                Powered by Groq AI · Tuguegarao Guide
               </span>
             </div>
           </div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button class="button outline small" data-action="fullscreen">Full screen</button>
-            <button class="button outline small" data-action="clear-domi" title="Reset chat history">
-              ${icon("trash-2")} Reset
+          <div style="display:flex; gap:6px; align-items:center;">
+            <a href="#/search" class="button outline small hide-mobile-xs" title="Browse listings">
+              ${icon("search")} <span>Explore</span>
+            </a>
+            <button type="button" class="button outline small" data-action="clear-domi" title="Reset chat history">
+              ${icon("trash-2")} <span class="hide-mobile-xs">Reset</span>
             </button>
           </div>
         </header>
 
-        <div id="domi-chat-stream" class="domi-chat-messages">
+        <!-- Suggested Prompt Chips Bar -->
+        <div class="domi-suggested-prompts-bar">
+          <span class="domi-suggested-label">${icon("sparkles")} Suggested:</span>
+          <button type="button" class="domi-prompt-chip" data-domi-prompt="Find rooms near CSU">Find rooms near CSU</button>
+          <button type="button" class="domi-prompt-chip" data-domi-prompt="Show rentals under ₱3,000">Show rentals under ₱3,000</button>
+          <button type="button" class="domi-prompt-chip" data-domi-prompt="Compare available dorms">Compare available dorms</button>
+          <button type="button" class="domi-prompt-chip" data-domi-prompt="Find rooms with Wi-Fi">Find rooms with Wi-Fi</button>
+          <button type="button" class="domi-prompt-chip" data-domi-prompt="Help me message a landlord">Help me message a landlord</button>
+        </div>
+
+        <!-- Chat messages stream -->
+        <div id="domi-chat-stream" class="domi-chat-messages" tabindex="0" role="log" aria-live="polite">
           ${messagesHtml}
         </div>
 
+        <!-- Fixed Message Composer -->
         <form id="domi-chat-form" class="domi-composer">
           <input
             name="question"
             id="domi-chat-input"
-            placeholder="Ask DOMI anything about rooms, budgets, or areas in Tuguegarao..."
+            placeholder="Ask DOMI anything about rooms, budgets, or areas..."
             required
             maxlength="1000"
             autocomplete="off"
+            aria-label="Ask DOMI a question"
           />
-          <button class="button primary" type="submit" aria-label="Send question">
+          <button class="button primary chat-send-btn" type="submit" aria-label="Send question" id="btn-domi-send">
             ${icon("send")} <span>Send</span>
           </button>
         </form>
       </div>
-
     </div>
   `;
+}
+
+function closeModal() {
+  const m = $("#modal");
+  if (!m) return;
+  if (m.open) {
+    m.close();
+  }
+  document.body.classList.remove("modal-open");
 }
 
 function modal(content, options = {}) {
@@ -3964,14 +4302,17 @@ function modal(content, options = {}) {
   m.innerHTML = `
     <div class="modal-box ${isLightbox ? "modal-box-lightbox" : ""} ${isDrawer ? "modal-box-drawer" : ""}">
       ${!isLightbox && !isDrawer ? `
-        <button class="modal-close-btn" data-action="close-modal" aria-label="Close dialog">
+        <button type="button" class="modal-close-btn" data-action="close-modal" aria-label="Close dialog">
           ${icon("x")}
         </button>
       ` : ""}
       ${content}
     </div>
   `;
-  m.showModal();
+  document.body.classList.add("modal-open");
+  if (!m.open) {
+    m.showModal();
+  }
   refreshIcons();
 }
 
@@ -3988,6 +4329,9 @@ async function loadListings(more = false) {
     state.error = e.message;
   }
 }
+
+const scrollPositions = new Map();
+let previousRoutePage = "";
 
 /* ==============================================================================
    ROUTER & MAIN APPLICATION BOOTSTRAP
@@ -4007,14 +4351,50 @@ async function route() {
     map = null;
   }
 
+  if (previousRoutePage) {
+    scrollPositions.set(previousRoutePage, window.scrollY || window.pageYOffset || 0);
+  }
+
+  // Wait for initial auth state before routing protected pages or automatic home redirects
+  if (!api.isAuthResolved) {
+    await api.authReady;
+  }
+
   const cleanHash = location.hash.replace(/^#\/?/, "").trim();
+
+  // If user opens app at root without hash:
+  if (!cleanHash) {
+    if (api.currentUser) {
+      const savedRoute = localStorage.getItem("dormpath-last-route");
+      if (savedRoute && savedRoute !== "#/" && savedRoute !== "#/home" && savedRoute !== "#/login" && savedRoute !== "#/register") {
+        location.hash = savedRoute;
+        return;
+      }
+      location.hash = "/dashboard";
+      return;
+    }
+  }
+
   const segments = cleanHash ? cleanHash.split("/") : [];
   let page = segments[0] || "home";
   const id = segments[1] || "";
 
-  // Normalize aliases for intuitive mobile routing
+  // Normalize aliases for intuitive mobile routing and direct auditing
   if (page === "explore") page = "search";
+  if (page === "saved") page = "favorites";
+  if (page === "chat") page = "messages";
+  if (page === "settings") page = "profile";
+  if (page === "fair-housing") page = "about";
+  if (page === "rules") page = "terms";
+  if (["suggestions", "fixes"].includes(page)) page = "feedback";
   if (["property-new", "new-property", "new-listing"].includes(page)) page = "add-property";
+
+  // Remember last active content route
+  if (page && !["login", "register", "home"].includes(page)) {
+    try {
+      localStorage.setItem("dormpath-last-route", location.hash);
+    } catch {}
+  }
 
   // Determine Layout Structure & Page Types
   const isAuth = ["login", "register", "reset-password"].includes(page);
@@ -4210,6 +4590,16 @@ async function route() {
     document.body.dataset.page = page;
     refreshIcons();
     stopLoading();
+
+    previousRoutePage = page;
+    if (page === "search" && scrollPositions.has("search")) {
+      const targetY = scrollPositions.get("search") || 0;
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: targetY, behavior: "instant" });
+      });
+    } else {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
 
     if (page === "domi") {
       const stream = $("#domi-chat-stream");
@@ -4549,11 +4939,11 @@ async function mountMap() {
       essential: true,
     });
 
-    // Sync left feed card active state & scroll
-    $$(".map3d-card").forEach((card) => {
+    // Sync left feed & bottom sheet card active state & scroll
+    $$(".map3d-card, .map-sheet-card").forEach((card) => {
       if (card.dataset.focusProperty === id) {
         card.classList.add("active");
-        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
       } else {
         card.classList.remove("active");
       }
@@ -4611,7 +5001,7 @@ async function mountMap() {
   $("#map3d-zoom-in")?.addEventListener("click", () => map.zoomIn());
   $("#map3d-zoom-out")?.addEventListener("click", () => map.zoomOut());
 
-  // Quick filter chips inside 3D sidebar
+  // Quick filter chips inside 3D sidebar & floating bar
   $$("[data-map-filter]").forEach((chip) => {
     chip.addEventListener("click", () => {
       const type = chip.dataset.mapFilter;
@@ -4623,6 +5013,26 @@ async function mountMap() {
   $$("[data-map-vacant]").forEach((chip) => {
     chip.addEventListener("click", () => {
       state.filters.vacant = !state.filters.vacant;
+      route();
+    });
+  });
+
+  // School quick-filter pills (USL, SPUP, CSU Carig, CSU Andrews, CVMC)
+  $$("[data-map-school]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const s = chip.dataset.mapSchool;
+      const coords = CAMPUS_COORDS[s];
+      if (coords) {
+        map.flyTo({
+          center: coords,
+          zoom: 15.5,
+          pitch: 0,
+          speed: 1.2,
+          essential: true,
+        });
+        toast(`Centered map near ${s}.`);
+      }
+      state.filters.school = state.filters.school === s ? undefined : s;
       route();
     });
   });
@@ -4869,7 +5279,7 @@ function openInstallModal() {
    GLOBAL EVENT DELEGATION
    ============================================================================== */
 document.addEventListener("click", async (event) => {
-  const el = event.target.closest("button, a, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], [data-preview-photo], .gallery-count-badge, .gallery-hero-wrapper, .gallery-sub-wrapper, [data-lightbox-jump], .conversation-card, #btn-chat-attach, #btn-chat-mic, #btn-cancel-voice, #btn-send-voice, .chat-media-wrap");
+  const el = event.target.closest("button, a, [data-action], [data-role-select], [data-school], [data-type], [data-save], [data-status], [data-delete-property], [data-room], [data-occupy], [data-vacate], [data-verify], [data-suspend], [data-moderate], [data-report], [data-confirm-viewing], [data-user-filter], [data-preview-photo], .gallery-count-badge, .gallery-hero-wrapper, .gallery-sub-wrapper, [data-lightbox-jump], .conversation-card, #btn-chat-attach, #btn-chat-mic, #btn-cancel-voice, #btn-send-voice, .chat-media-wrap, [data-domi-prompt], [data-explore-type], [data-explore-vacant], [data-explore-budget], [data-explore-amenity], [data-clear-filter], #explore-search-clear, #map-sheet-handle, #map-sheet-toggle-btn, [data-set-budget]");
   if (!el) return;
 
   // Install PWA Trigger
@@ -4894,6 +5304,102 @@ document.addEventListener("click", async (event) => {
     const inp = $("#domi-chat-input");
     if (inp) inp.value = q;
     await askDomi(q);
+    return;
+  }
+
+  // DOMI suggested prompt chip clicked
+  const domiPromptBtn = el.closest("[data-domi-prompt]");
+  if (domiPromptBtn) {
+    const q = domiPromptBtn.dataset.domiPrompt;
+    const inp = $("#domi-chat-input");
+    if (inp) inp.value = q;
+    await askDomi(q);
+    return;
+  }
+
+  // Set budget preset in filters modal
+  if (el.dataset.setBudget !== undefined) {
+    const val = el.dataset.setBudget;
+    const inp = $("#filter-budget-input");
+    if (inp) inp.value = val;
+    document.querySelectorAll(".budget-preset-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.setBudget === val);
+    });
+    return;
+  }
+
+  // Quick filter chips in Explore
+  if (el.dataset.exploreType !== undefined) {
+    const t = el.dataset.exploreType;
+    state.filters.type = state.filters.type === t ? undefined : (t || undefined);
+    route();
+    return;
+  }
+
+  if (el.dataset.exploreVacant) {
+    state.filters.vacant = !state.filters.vacant;
+    route();
+    return;
+  }
+
+  if (el.dataset.exploreBudget) {
+    const b = Number(el.dataset.exploreBudget);
+    state.filters.budget = state.filters.budget === b ? undefined : b;
+    route();
+    return;
+  }
+
+  if (el.dataset.exploreAmenity) {
+    const a = el.dataset.exploreAmenity;
+    let list = [...(state.filters.amenities || [])];
+    if (list.includes(a)) {
+      list = list.filter((item) => item !== a);
+    } else {
+      list.push(a);
+    }
+    state.filters.amenities = list.length ? list : undefined;
+    route();
+    return;
+  }
+
+  // Clear single active filter tag
+  if (el.dataset.clearFilter) {
+    const key = el.dataset.clearFilter;
+    if (key.startsWith("amenity:")) {
+      const am = key.replace("amenity:", "");
+      state.filters.amenities = (state.filters.amenities || []).filter((x) => x !== am);
+      if (!state.filters.amenities.length) delete state.filters.amenities;
+    } else {
+      delete state.filters[key];
+    }
+    route();
+    return;
+  }
+
+  // Clear explore search text
+  if (el.id === "explore-search-clear" || el.closest("#explore-search-clear")) {
+    delete state.filters.q;
+    const inp = $("#explore-search-input");
+    if (inp) inp.value = "";
+    route();
+    return;
+  }
+
+  // Map sheet toggle (peek <-> expanded)
+  const mapSheetToggle = el.closest("#map-sheet-handle, #map-sheet-toggle-btn");
+  if (mapSheetToggle) {
+    const sheet = $("#map-bottom-sheet");
+    if (sheet) {
+      const isExpanded = sheet.dataset.state === "expanded";
+      sheet.dataset.state = isExpanded ? "peek" : "expanded";
+      const toggleBtn = $("#map-sheet-toggle-btn");
+      if (toggleBtn) {
+        toggleBtn.innerHTML = isExpanded
+          ? `${icon("chevron-up")} <span>Expand</span>`
+          : `${icon("chevron-down")} <span>Collapse</span>`;
+        refreshIcons();
+      }
+    }
     return;
   }
 
@@ -5532,6 +6038,7 @@ document.addEventListener("click", async (event) => {
       try {
         await api.logout();
         state.favorites = [];
+        try { localStorage.removeItem("dormpath-last-route"); } catch {}
         location.hash = "/home";
       } finally {
         stopGlobalLoading();
@@ -5598,13 +6105,20 @@ document.addEventListener("click", async (event) => {
       break;
     }
     case "toggle-mobile-drawer": {
+      const m = $("#modal");
+      if (m && m.open && m.classList.contains("modal-drawer-dialog")) {
+        closeModal();
+        break;
+      }
       const isLandlord = api.profile?.role === "landlord";
-      const roleLabel = isLandlord ? "Landlord / Owner" : "User / Tenant";
+      const roleLabel = isLandlord
+        ? (api.profile?.verified ? "Verified Landlord" : "Landlord (Permit Pending)")
+        : "Student / Tenant";
       modal(`
         <div class="mobile-drawer-sheet">
-          <div class="drawer-drag-pill"></div>
+          <div class="drawer-drag-pill" title="Drag down to close"></div>
           <div class="drawer-user-header">
-            <div class="sidebar-avatar" style="width:44px; height:44px; font-size:1.15rem; flex-shrink:0;">
+            <div class="sidebar-avatar" style="width:46px; height:46px; font-size:1.15rem; flex-shrink:0;">
               ${
                 api.currentUser?.photoURL || api.profile?.photoURL
                   ? `<img src="${e(api.currentUser?.photoURL || api.profile?.photoURL)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="PFP">`
@@ -5612,75 +6126,227 @@ document.addEventListener("click", async (event) => {
               }
             </div>
             <div style="flex:1; min-width:0;">
-              <h3 style="margin:0; font-size:1rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${e(api.profile?.name || "User")}</h3>
-              <span style="font-size:0.75rem; color:var(--text-muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${roleLabel} · Tuguegarao & Peñablanca</span>
+              <h3 style="margin:0; font-size:1rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${e(api.profile?.name || (api.currentUser ? "User Account" : "Guest Explorer"))}
+              </h3>
+              <span style="font-size:0.75rem; color:var(--text-muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${api.currentUser ? roleLabel : "Sign in to save dorms & chat"} · Tuguegarao & Peñablanca
+              </span>
             </div>
-            <button type="button" class="drawer-close-btn" onclick="this.closest('dialog').close();" aria-label="Close menu">
+            <button type="button" class="drawer-close-btn" data-action="close-modal" aria-label="Close menu">
               ${icon("x")}
             </button>
           </div>
 
-          <div class="drawer-nav-grid">
-            <a href="#/search" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
-              ${icon("search")} <span>Explore</span>
-            </a>
-            <a href="#/map" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
-              ${icon("map")} <span>Area Map</span>
-            </a>
-            <a href="#/domi" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
-              ${icon("bot")} <span>DOMI AI</span>
-            </a>
-            <a href="#/favorites" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
-              ${icon("heart")} <span>Saved</span>
-            </a>
-            <a href="#/messages" class="drawer-nav-btn" onclick="this.closest('dialog').close();">
-              ${icon("messages-square")} <span>Chat</span>
-            </a>
-            <button type="button" class="drawer-nav-btn" data-action="open-notifications">
-              ${icon("bell")} <span>Alerts</span>
-            </button>
-            ${
-              isLandlord
-                ? `
-              <a href="#/properties" class="drawer-nav-btn col-span-2" onclick="this.closest('dialog').close();">
-                ${icon("building-2")} <span>My Properties</span>
-              </a>
-            `
-                : ""
-            }
+          <div class="drawer-sections-container">
+            <!-- NAVIGATION & EXPLORE -->
+            <div class="drawer-section">
+              <div class="drawer-section-title">NAVIGATION & EXPLORE</div>
+              <div class="drawer-links-list">
+                <a href="#/home" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("house")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Home</span>
+                    <span class="drawer-row-sub">Landing page & overview</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+                <a href="#/search" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("compass")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Explore</span>
+                    <span class="drawer-row-sub">Browse boarding houses, dorms, apartments</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+                <a href="#/map" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("map")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Map Explorer</span>
+                    <span class="drawer-row-sub">Interactive 3D campus & area map</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+                <a href="#/domi" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("bot")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">DOMI AI</span>
+                    <span class="drawer-row-sub">Smart student housing assistant</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+              </div>
+            </div>
+
+            <!-- ACCOUNT SECTION -->
+            <div class="drawer-section">
+              <div class="drawer-section-title">ACCOUNT</div>
+              <div class="drawer-links-list">
+                ${
+                  api.currentUser
+                    ? `
+                  <a href="#/profile" class="drawer-row-item">
+                    <div class="drawer-row-icon">${icon("user")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">Profile & Settings</span>
+                      <span class="drawer-row-sub">Manage name, school, password</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </a>
+                  <a href="#/favorites" class="drawer-row-item">
+                    <div class="drawer-row-icon">${icon("heart")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">Saved Properties</span>
+                      <span class="drawer-row-sub">Bookmarked rooms & dormitories</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </a>
+                  <button type="button" class="drawer-row-item" data-action="open-notifications">
+                    <div class="drawer-row-icon">${icon("bell")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">Notifications & Alerts</span>
+                      <span class="drawer-row-sub">Viewing updates, system alerts</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </button>
+                `
+                    : `
+                  <a href="#/login" class="drawer-row-item highlight-cta">
+                    <div class="drawer-row-icon">${icon("user-round")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">Sign In / Register</span>
+                      <span class="drawer-row-sub">Save rooms, chat with landlords</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </a>
+                `
+                }
+              </div>
+            </div>
+
+            <!-- HOUSING SECTION -->
+            <div class="drawer-section">
+              <div class="drawer-section-title">HOUSING</div>
+              <div class="drawer-links-list">
+                <a href="#/messages" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("messages-square")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Chat</span>
+                    <span class="drawer-row-sub">Private chat with landlords & tenants</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+                ${
+                  isLandlord
+                    ? `
+                  <a href="#/dashboard" class="drawer-row-item">
+                    <div class="drawer-row-icon">${icon("layout-dashboard")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">Landlord Dashboard</span>
+                      <span class="drawer-row-sub">Occupancy rates & viewings</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </a>
+                  <a href="#/properties" class="drawer-row-item">
+                    <div class="drawer-row-icon">${icon("building-2")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">My Properties</span>
+                      <span class="drawer-row-sub">Manage listings, rooms, vacancies</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </a>
+                  <a href="#/add-property" class="drawer-row-item">
+                    <div class="drawer-row-icon">${icon("house-plus")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">Add New Listing</span>
+                      <span class="drawer-row-sub">Submit a boarding house or room</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </a>
+                `
+                    : ""
+                }
+                <a href="#/about" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("shield-check")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Fair Housing</span>
+                    <span class="drawer-row-sub">Zero booking fees for room searchers</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+              </div>
+            </div>
+
+            <!-- ADMINISTRATION SECTION (ONLY FOR ADMINS) -->
             ${
               api.isAdmin
                 ? `
-              <a href="#/admin" class="drawer-nav-btn col-span-2 highlight-admin" onclick="this.closest('dialog').close();">
-                ${icon("shield-check")} <span>Administrator Console</span>
-              </a>
+              <div class="drawer-section">
+                <div class="drawer-section-title">ADMINISTRATION</div>
+                <div class="drawer-links-list">
+                  <a href="#/admin" class="drawer-row-item highlight-admin">
+                    <div class="drawer-row-icon">${icon("shield-check")}</div>
+                    <div class="drawer-row-content">
+                      <span class="drawer-row-label">Administrator Console</span>
+                      <span class="drawer-row-sub">Moderate listings, verify owners, view logs</span>
+                    </div>
+                    ${icon("chevron-right", "drawer-row-chevron")}
+                  </a>
+                </div>
+              </div>
             `
                 : ""
             }
-            <a href="#/profile" class="drawer-nav-btn col-span-2" onclick="this.closest('dialog').close();">
-              ${icon("user")} <span>Profile & Settings</span>
-            </a>
-          </div>
 
-          <div class="drawer-sublinks">
-            <a href="#/about" class="drawer-text-link" onclick="this.closest('dialog').close();">
-              ${icon("info")} Fair Housing
-            </a>
-            <a href="#/terms" class="drawer-text-link" onclick="this.closest('dialog').close();">
-              ${icon("file-text")} Rules & Terms
-            </a>
-            <a href="#/feedback" class="drawer-text-link" onclick="this.closest('dialog').close();">
-              ${icon("lightbulb")} Suggestions & Fixes
-            </a>
+            <!-- SUPPORT & POLICIES -->
+            <div class="drawer-section">
+              <div class="drawer-section-title">SUPPORT & POLICIES</div>
+              <div class="drawer-links-list">
+                <a href="#/feedback" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("lightbulb")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Suggestions & Fixes</span>
+                    <span class="drawer-row-sub">Tell us what to improve</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+                <a href="#/terms" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("file-text")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Rules & Terms</span>
+                    <span class="drawer-row-sub">Community standards & policies</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+                <a href="#/privacy" class="drawer-row-item">
+                  <div class="drawer-row-icon">${icon("shield")}</div>
+                  <div class="drawer-row-content">
+                    <span class="drawer-row-label">Data Privacy Policy</span>
+                    <span class="drawer-row-sub">RA 10173 compliance</span>
+                  </div>
+                  ${icon("chevron-right", "drawer-row-chevron")}
+                </a>
+              </div>
+            </div>
           </div>
 
           <div class="drawer-footer-actions">
             <button type="button" class="button outline small drawer-action-btn" data-action="theme">
-              ${icon("sun-moon")} Toggle Theme
+              ${icon("sun-moon")} <span>Appearance</span>
             </button>
-            <button type="button" class="button outline small drawer-action-btn btn-danger-outline" data-action="logout" onclick="this.closest('dialog').close();">
-              ${icon("log-out")} Log Out
-            </button>
+            ${
+              api.currentUser
+                ? `
+              <button type="button" class="button outline small drawer-action-btn btn-danger-outline" data-action="logout">
+                ${icon("log-out")} <span>Log Out</span>
+              </button>
+            `
+                : `
+              <a href="#/login" class="button primary small drawer-action-btn">
+                ${icon("log-in")} <span>Sign In</span>
+              </a>
+            `
+            }
           </div>
         </div>
       `, { drawer: true });
@@ -5693,10 +6359,18 @@ document.addEventListener("click", async (event) => {
       state.domiHistory = [
         {
           role: "domi",
-          text: "Kumusta! I am DOMI, your housing guide for Tuguegarao City. Ask me anything about boarding houses, campus distances (CSU Carig, Andrews, SPUP, USL), typical rents, or drafting inquiries to landlords!",
+          text: "Hi! I'm DOMI, your DormPath housing assistant. I can help you find rooms, compare rentals, and explore places near your school.",
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ];
+      route();
+      break;
+    case "open-filters-sheet":
+      openFiltersModal();
+      break;
+    case "reset-filters-modal":
+      state.filters = {};
+      $("#modal")?.close();
       route();
       break;
     case "close-modal":
@@ -5836,6 +6510,28 @@ document.addEventListener("submit", async (event) => {
         location.hash = "/search";
         route();
         break;
+      case "advanced-filters-form": {
+        const budgetVal = values.budget ? Number(values.budget) : undefined;
+        const typeVal = values.type || undefined;
+        const schoolVal = values.school || undefined;
+        const vacantVal = data.has("vacant");
+        const amenities = data.getAll("amenities");
+        state.filters = {
+          ...state.filters,
+          budget: budgetVal,
+          type: typeVal,
+          school: schoolVal,
+          vacant: vacantVal,
+          amenities: amenities.length ? amenities : undefined,
+        };
+        $("#modal")?.close();
+        if (location.hash.startsWith("#/search") || location.hash.startsWith("#/map")) {
+          route();
+        } else {
+          location.hash = "/search";
+        }
+        break;
+      }
       case "filters":
         state.filters = { ...state.filters, type: values.type, vacant: data.has("vacant") };
         route();
@@ -6480,16 +7176,44 @@ document.addEventListener("change", (event) => {
   }
 });
 
-// Auto-resize chat textarea
+// Auto-resize chat textarea & Debounced Explore Search
+let exploreSearchDebounceTimer = null;
 document.addEventListener("input", (e) => {
   if (e.target.id === "message-text") {
     e.target.style.height = "auto";
     e.target.style.height = Math.min(130, Math.max(46, e.target.scrollHeight)) + "px";
   }
+
+  if (e.target.id === "explore-search-input") {
+    clearTimeout(exploreSearchDebounceTimer);
+    exploreSearchDebounceTimer = setTimeout(() => {
+      state.filters.q = e.target.value.trim() || undefined;
+      const items = filterProperties(state.properties, state.filters);
+      const mount = $("#explore-listings-mount");
+      if (mount) {
+        mount.innerHTML = listingArea(items);
+        refreshIcons();
+      }
+      const countEl = $("#explore-results-count");
+      if (countEl) {
+        countEl.innerHTML = `<strong>${items.length}</strong> ${items.length === 1 ? "space" : "spaces"} available`;
+      }
+      const clearBtn = $("#explore-search-clear");
+      if (clearBtn) {
+        clearBtn.style.display = e.target.value ? "flex" : "none";
+      }
+    }, 250);
+  }
 });
 
 // Enter to send in chat textarea & Keyboard navigation for photo lightbox
 document.addEventListener("keydown", (e) => {
+  if (e.target.id === "explore-search-input" && e.key === "Enter") {
+    e.preventDefault();
+    e.target.blur();
+    return;
+  }
+
   if (e.target.id === "message-text" && e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     const form = $("#message-form");
@@ -6607,9 +7331,89 @@ document.addEventListener("input", (event) => {
   }
 });
 
+// Global Modal & Drawer Dialog Listeners
+const modalElement = $("#modal");
+if (modalElement) {
+  modalElement.addEventListener("close", () => {
+    document.body.classList.remove("modal-open");
+  });
+
+  modalElement.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeModal();
+  });
+
+  modalElement.addEventListener("click", (e) => {
+    // Backdrop click: if user clicks directly on the dialog element outside .modal-box
+    if (e.target === modalElement) {
+      e.stopPropagation();
+      closeModal();
+      return;
+    }
+    // Close button click
+    if (e.target.closest('[data-action="close-modal"], .drawer-close-btn, .modal-close-btn')) {
+      e.stopPropagation();
+      closeModal();
+      return;
+    }
+    // Navigation link click inside modal/drawer
+    const navLink = e.target.closest("a[href]");
+    if (navLink) {
+      closeModal();
+    }
+  });
+}
+
+// Mobile Drawer Swipe-Down Gesture Handler (Drag handle only)
+let drawerTouchStartY = 0;
+let drawerTouchDiffY = 0;
+let isDraggingDrawerHandle = false;
+
+document.addEventListener("touchstart", (e) => {
+  const dragHandle = e.target.closest(".drawer-drag-pill, .drawer-user-header");
+  const modalBox = e.target.closest(".modal-box-drawer");
+  if (dragHandle && modalBox) {
+    drawerTouchStartY = e.touches[0].clientY;
+    drawerTouchDiffY = 0;
+    isDraggingDrawerHandle = true;
+  }
+}, { passive: true });
+
+document.addEventListener("touchmove", (e) => {
+  if (!isDraggingDrawerHandle) return;
+  const currentY = e.touches[0].clientY;
+  drawerTouchDiffY = currentY - drawerTouchStartY;
+  if (drawerTouchDiffY > 0) {
+    const modalBox = document.querySelector(".modal-box-drawer");
+    if (modalBox) {
+      modalBox.style.transform = `translateY(${drawerTouchDiffY}px)`;
+      modalBox.style.transition = "none";
+    }
+  }
+}, { passive: true });
+
+document.addEventListener("touchend", () => {
+  if (!isDraggingDrawerHandle) return;
+  isDraggingDrawerHandle = false;
+  const modalBox = document.querySelector(".modal-box-drawer");
+  if (modalBox) {
+    modalBox.style.transition = "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)";
+    if (drawerTouchDiffY > 60) {
+      modalBox.style.transform = "translateY(100%)";
+      setTimeout(() => {
+        closeModal();
+        modalBox.style.transform = "";
+        modalBox.style.transition = "";
+      }, 190);
+    } else {
+      modalBox.style.transform = "";
+    }
+  }
+}, { passive: true });
+
 // Window listeners
 window.addEventListener("hashchange", () => {
-  window.scrollTo(0, 0);
+  closeModal();
   route();
 });
 

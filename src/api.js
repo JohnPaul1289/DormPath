@@ -138,8 +138,16 @@ export async function refreshProfile() {
   return profile;
 }
 
+export let isAuthResolved = false;
+let authReadyResolver;
+export const authReady = new Promise((resolve) => {
+  authReadyResolver = resolve;
+});
+
 export function watchAuth(fn) {
   if (!configured) {
+    isAuthResolved = true;
+    if (authReadyResolver) authReadyResolver(null);
     fn(null);
     return () => {};
   }
@@ -152,6 +160,8 @@ export function watchAuth(fn) {
       currentUser = null;
       profile = null;
       isAdmin = false;
+      isAuthResolved = true;
+      if (authReadyResolver) authReadyResolver(null);
       fn(null);
       return;
     }
@@ -182,11 +192,15 @@ export function watchAuth(fn) {
         profile = null;
         isAdmin = false;
       }
+      isAuthResolved = true;
+      if (authReadyResolver) authReadyResolver(user);
       fn(user);
     } catch (e) {
       profile = null;
       isAdmin = false;
       currentUser = null;
+      isAuthResolved = true;
+      if (authReadyResolver) authReadyResolver(null);
       fn(null, e);
     }
   });
